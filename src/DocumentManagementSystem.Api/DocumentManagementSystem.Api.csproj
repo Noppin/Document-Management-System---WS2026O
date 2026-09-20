@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <ProjectReference Include="..\DocumentManagementSystem.Domain\DocumentManagementSystem.Domain.csproj" />
+    <ProjectReference Include="..\DocumentManagementSystem.Persistence\DocumentManagementSystem.Persistence.csproj" />
+  </ItemGroup>
+</Project>
