@@ -1,0 +1,189 @@
+openapi: 3.0.3
+info:
+  title: Document Management System REST API
+  version: 1.0.0
+  description: REST API for document uploads and collections.
+servers:
+  - url: http://localhost:8080
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: API is running
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, example: ok }
+  /documents:
+    post:
+      tags: [Documents]
+      summary: Upload a PDF document
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '201':
+          description: Document uploaded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentResponse' }
+        '400': { description: Invalid upload }
+    get:
+      tags: [Documents]
+      summary: List all documents
+      responses:
+        '200':
+          description: Documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DocumentResponse' }
+  /documents/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Documents]
+      summary: Get one document
+      responses:
+        '200':
+          description: Document
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentResponse' }
+        '404': { description: Document not found }
+    delete:
+      tags: [Documents]
+      summary: Delete one document
+      responses:
+        '204': { description: Deleted }
+        '404': { description: Document not found }
+  /collections:
+    post:
+      tags: [Collections]
+      summary: Create a collection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCollectionRequest' }
+      responses:
+        '201':
+          description: Collection created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CollectionResponse' }
+        '400': { description: Collection name is required }
+    get:
+      tags: [Collections]
+      summary: List collections
+      responses:
+        '200':
+          description: Collections
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CollectionResponse' }
+  /collections/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Collections]
+      summary: Get a collection and its documents
+      responses:
+        '200':
+          description: Collection details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CollectionDetailResponse' }
+        '404': { description: Collection not found }
+  /collections/{id}/documents:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Collections]
+      summary: Add a document to a collection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssignDocumentRequest' }
+      responses:
+        '204': { description: Document assigned }
+        '404': { description: Document or collection not found }
+  /collections/{id}/documents/{documentId}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+      - in: path
+        name: documentId
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      tags: [Collections]
+      summary: Remove a document from a collection
+      responses:
+        '204': { description: Document removed }
+        '404': { description: Collection or document link not found }
+components:
+  schemas:
+    DocumentResponse:
+      type: object
+      required: [id, fileName, contentType, fileSize, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        fileName: { type: string }
+        contentType: { type: string, example: application/pdf }
+        fileSize: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+    CreateCollectionRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+    AssignDocumentRequest:
+      type: object
+      required: [documentId]
+      properties:
+        documentId: { type: string, format: uuid }
+    CollectionResponse:
+      type: object
+      required: [id, name, createdAt, documentCount]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        createdAt: { type: string, format: date-time }
+        documentCount: { type: integer, format: int32 }
+    CollectionDetailResponse:
+      type: object
+      required: [id, name, createdAt, documents]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        createdAt: { type: string, format: date-time }
+        documents:
+          type: array
+          items: { $ref: '#/components/schemas/DocumentResponse' }

@@ -1,0 +1,52 @@
+@baseUrl = http://localhost:8080
+
+GET {{baseUrl}}/health
+
+### Upload PDF
+# Replace the file path with an existing PDF before sending.
+POST {{baseUrl}}/documents
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="sample.pdf"
+Content-Type: application/pdf
+
+< ./sample.pdf
+--boundary--
+
+### List documents
+GET {{baseUrl}}/documents
+
+### Get document
+# Replace the ID with the ID returned by the upload request.
+GET {{baseUrl}}/documents/YOUR_DOCUMENT_ID
+
+### Delete document
+# Replace the ID with the ID returned by the upload request.
+DELETE {{baseUrl}}/documents/YOUR_DOCUMENT_ID
+
+### Create collection
+POST {{baseUrl}}/collections
+Content-Type: application/json
+
+{
+  "name": "Invoices"
+}
+
+### List collections
+GET {{baseUrl}}/collections
+
+### Get collection
+# Replace the ID with the ID returned by the create collection request.
+GET {{baseUrl}}/collections/YOUR_COLLECTION_ID
+
+### Add document to collection
+POST {{baseUrl}}/collections/YOUR_COLLECTION_ID/documents
+Content-Type: application/json
+
+{
+  "documentId": "YOUR_DOCUMENT_ID"
+}
+
+### Remove document from collection
+DELETE {{baseUrl}}/collections/YOUR_COLLECTION_ID/documents/YOUR_DOCUMENT_ID
