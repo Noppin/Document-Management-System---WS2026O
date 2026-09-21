@@ -1,0 +1,82 @@
+openapi: 3.0.3
+info:
+  title: Document Management System
+  version: 1.0.0
+  description: REST API specification for the required Document Upload use case.
+servers:
+  - url: http://localhost:8080
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200': { description: API is running }
+  /api/documents:
+    post:
+      tags: [Documents]
+      summary: Upload a PDF document
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                title: { type: string, maxLength: 200 }
+                description: { type: string, maxLength: 1000 }
+      responses:
+        '201':
+          description: Document uploaded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '400': { description: Invalid upload }
+    get:
+      tags: [Documents]
+      summary: List all documents
+      responses:
+        '200':
+          description: Documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Document' }
+  /api/documents/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Documents]
+      summary: Get one document
+      responses:
+        '200':
+          description: Document
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '404': { description: Document not found }
+    delete:
+      tags: [Documents]
+      summary: Delete one document
+      responses:
+        '204': { description: Deleted }
+        '404': { description: Document not found }
+components:
+  schemas:
+    Document:
+      type: object
+      required: [id, fileName, contentType, sizeBytes, status, createdAtUtc]
+      properties:
+        id: { type: string, format: uuid }
+        fileName: { type: string }
+        contentType: { type: string }
+        sizeBytes: { type: integer, format: int64 }
+        title: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        status: { type: string, example: Uploaded }
+        createdAtUtc: { type: string, format: date-time }

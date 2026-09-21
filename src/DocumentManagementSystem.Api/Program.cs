@@ -6,15 +6,18 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddProblemDetails();
 builder.Services.AddPersistence();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-	app.UseSwagger();
-	app.UseSwaggerUI();
+	app.UseSwaggerUI(options =>
+	{
+		options.SwaggerEndpoint("/openapi.yaml", "Document Management System API v1");
+	});
+
+	var openApiPath = Path.Combine(AppContext.BaseDirectory, "openapi.yaml");
+	app.MapGet("/openapi.yaml", () => Results.File(openApiPath, "application/yaml"));
 }
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
