@@ -70,6 +70,22 @@ Remove the database volume as well:
 docker compose down -v
 ```
 
+## Database migrations
+
+The API applies pending EF Core migrations automatically on startup
+(`Database.Migrate()`), so the PostgreSQL schema is created and kept up to date
+when the containers start.
+
+If the `postgres-data` volume was created by an older build that used
+`EnsureCreated()` (before migrations were introduced), the startup migration
+fails because the tables already exist without a migrations history. Reset the
+volume once and start again:
+
+```powershell
+docker compose down -v
+docker compose up -d --build
+```
+
 ## Stop the application
 
 When the application was started with Docker Compose, stop the API and
