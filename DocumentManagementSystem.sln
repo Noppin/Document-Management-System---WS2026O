@@ -1,4 +1,4 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
@@ -7,6 +7,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocumentManagementSystem.Persistence", "src\DocumentManagementSystem.Persistence\DocumentManagementSystem.Persistence.csproj", "{A6B1D6C0-3E19-4D2C-8D5B-7F0B1A5E4C92}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocumentManagementSystem.Api", "src\DocumentManagementSystem.Api\DocumentManagementSystem.Api.csproj", "{CD353FC6-B4C8-4FAB-9D73-DB3C7FE74947}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocumentManagementSystem.Persistence.Tests", "tests\DocumentManagementSystem.Persistence.Tests\DocumentManagementSystem.Persistence.Tests.csproj", "{406C32E0-EB56-4081-A40E-81E964A70AE4}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -26,5 +28,9 @@ Global
 		{CD353FC6-B4C8-4FAB-9D73-DB3C7FE74947}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CD353FC6-B4C8-4FAB-9D73-DB3C7FE74947}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CD353FC6-B4C8-4FAB-9D73-DB3C7FE74947}.Release|Any CPU.Build.0 = Release|Any CPU
+		{406C32E0-EB56-4081-A40E-81E964A70AE4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{406C32E0-EB56-4081-A40E-81E964A70AE4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{406C32E0-EB56-4081-A40E-81E964A70AE4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{406C32E0-EB56-4081-A40E-81E964A70AE4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
