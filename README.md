@@ -19,7 +19,11 @@ Run from the repository root:
 ```powershell
 dotnet restore DocumentManagementSystem.sln
 dotnet build DocumentManagementSystem.sln
+dotnet test DocumentManagementSystem.sln
 ```
+
+`dotnet test` runs the repository unit tests in
+`tests/DocumentManagementSystem.Persistence.Tests` against an in-memory database.
 
 ## Start with Docker Compose
 
@@ -181,6 +185,34 @@ Expected status: `200 OK`.
 5. Click **Execute**.
 
 Valid uploads must be non-empty PDF files with the `application/pdf` content type and a `%PDF-` header. Successful uploads return `201 Created`; invalid uploads return `400 Bad Request`.
+
+## Manual API testing
+
+### HTTP client
+
+Open [http/paperless.http](http/paperless.http) in Visual Studio or Visual Studio
+Code (REST Client) and run the requests. It covers the health check, document
+upload/list/get/delete and the collection endpoints.
+
+### Upload via curl
+
+Upload the bundled sample PDF with one of the helper scripts:
+
+```powershell
+./scripts/upload-document.ps1
+```
+
+```bash
+./scripts/upload-document.sh
+```
+
+Both default to `http/sample.pdf` and `http://localhost:8080` (Docker Compose).
+Pass a file path and base URL to override them, for example a local `dotnet run`
+on port `5000`:
+
+```powershell
+./scripts/upload-document.ps1 -File http/sample.pdf -BaseUrl http://localhost:5000
+```
 
 ## Environment settings
 
