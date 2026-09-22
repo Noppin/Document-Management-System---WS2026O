@@ -24,7 +24,10 @@ public sealed class DocumentService(IDocumentRepository documents) : IDocumentSe
         if (!string.Equals(request.File.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("The uploaded file must have content type application/pdf.", nameof(request));
 
-        await using var stream = request.File.OpenReadStream();
+        await using var stream = new MemoryStream();
+        await request.File.CopyToAsync(stream, cancellationToken);
+        var content = stream.ToArray();
+        stream.Position = 0;
         var header = new byte[5];
         var bytesRead = await stream.ReadAsync(header, cancellationToken);
         if (bytesRead != header.Length || !header.SequenceEqual("%PDF-"u8.ToArray()))
@@ -34,7 +37,8 @@ public sealed class DocumentService(IDocumentRepository documents) : IDocumentSe
         {
             FileName = Path.GetFileName(request.File.FileName),
             ContentType = request.File.ContentType,
-            FileSize = request.File.Length
+            FileSize = request.File.Length,
+            Content = content
         };
 
         documents.Add(document);
