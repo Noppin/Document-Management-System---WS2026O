@@ -1,0 +1,9 @@
+**/bin
+**/obj
+.git
+.vs
+.vscode
+.idea
+TestResults
+coverage
+04-final-version.patch
