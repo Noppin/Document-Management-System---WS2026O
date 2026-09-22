@@ -2,11 +2,13 @@ using DocumentManagementSystem.Persistence;
 using DocumentManagementSystem.Api.Contracts;
 using DocumentManagementSystem.Domain.Entities;
 using DocumentManagementSystem.Api.Services;
+using DocumentManagementSystem.Api.ExceptionHandling;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<ArgumentExceptionHandler>();
 var connectionString = builder.Configuration.GetConnectionString("DocumentManagementDb")
 	?? throw new InvalidOperationException("Connection string 'DocumentManagementDb' is not configured.");
 builder.Services.AddPersistence(connectionString);
@@ -16,6 +18,8 @@ builder.Services.AddControllers();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 
 var app = builder.Build();
+
+app.UseExceptionHandler();
 
 using (var scope = app.Services.CreateScope())
 {
