@@ -24,7 +24,7 @@ app.UseExceptionHandler();
 using (var scope = app.Services.CreateScope())
 {
 	var dbContext = scope.ServiceProvider.GetRequiredService<DocumentManagementDbContext>();
-	dbContext.Database.EnsureCreated();
+	dbContext.Database.Migrate();
 }
 
 if (app.Environment.IsDevelopment())
