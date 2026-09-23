@@ -2,6 +2,11 @@ Document Management System
 
 ASP.NET Core Web API for document uploads.
 
+## Project management
+
+Tickets and task tracking are managed in Jira:
+<https://nipponlama.atlassian.net/jira/software/projects/DMS/boards/1?filter=assignee%20%3D%20empty&groupBy=none>
+
 ## Requirements
 
 - .NET 10 SDK
