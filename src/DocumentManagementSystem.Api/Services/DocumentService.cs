@@ -1,10 +1,11 @@
+using AutoMapper;
 using DocumentManagementSystem.Api.Contracts;
 using DocumentManagementSystem.Domain.Entities;
 using DocumentManagementSystem.Persistence;
 
 namespace DocumentManagementSystem.Api.Services;
 
-public sealed class DocumentService(IDocumentRepository documents) : IDocumentService
+public sealed class DocumentService(IDocumentRepository documents, IMapper mapper) : IDocumentService
 {
     private const long MaxFileSize = 20 * 1024 * 1024;
 
@@ -42,20 +43,17 @@ public sealed class DocumentService(IDocumentRepository documents) : IDocumentSe
         };
 
         documents.Add(document);
-        return ToResponse(document);
+        return mapper.Map<DocumentResponse>(document);
     }
 
     public IReadOnlyList<DocumentResponse> GetAll() =>
-        documents.GetAll().Select(ToResponse).ToList();
+        documents.GetAll().Select(document => mapper.Map<DocumentResponse>(document)).ToList();
 
     public DocumentResponse? Get(Guid id)
     {
         var document = documents.GetById(id);
-        return document is null ? null : ToResponse(document);
+        return document is null ? null : mapper.Map<DocumentResponse>(document);
     }
 
     public bool Delete(Guid id) => documents.Delete(id);
-
-    private static DocumentResponse ToResponse(Document document) =>
-        new(document.Id, document.FileName, document.ContentType, document.FileSize, document.CreatedAt);
 }
