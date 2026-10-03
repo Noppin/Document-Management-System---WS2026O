@@ -1,3 +1,4 @@
+using AutoMapper;
 using DocumentManagementSystem.Api.Contracts;
 using DocumentManagementSystem.Domain.Entities;
 using DocumentManagementSystem.Persistence;
@@ -6,7 +7,8 @@ namespace DocumentManagementSystem.Api.Services;
 
 public sealed class CollectionService(
     ICollectionRepository collectionRepository,
-    IDocumentRepository documentRepository) : ICollectionService
+    IDocumentRepository documentRepository,
+    IMapper mapper) : ICollectionService
 {
     public CollectionResponse Create(CreateCollectionRequest request)
     {
@@ -14,11 +16,11 @@ public sealed class CollectionService(
             throw new ArgumentException("A collection name is required.", nameof(request));
 
         var collection = collectionRepository.Add(new Collection { Name = request.Name.Trim() });
-        return ToResponse(collection);
+        return mapper.Map<CollectionResponse>(collection);
     }
 
     public IReadOnlyList<CollectionResponse> GetAll() =>
-        collectionRepository.GetAll().Select(ToResponse).ToList();
+        collectionRepository.GetAll().Select(collection => mapper.Map<CollectionResponse>(collection)).ToList();
 
     public CollectionDetailResponse? GetById(Guid id)
     {
@@ -29,7 +31,7 @@ public sealed class CollectionService(
         var documents = collection.CollectionDocuments
             .Select(link => documentRepository.GetById(link.DocumentId))
             .OfType<Document>()
-            .Select(ToDocumentResponse)
+            .Select(document => mapper.Map<DocumentResponse>(document))
             .ToList();
 
         return new CollectionDetailResponse(collection.Id, collection.Name, collection.CreatedAt, documents);
@@ -41,10 +43,4 @@ public sealed class CollectionService(
 
     public bool RemoveDocument(Guid collectionId, Guid documentId) =>
         collectionRepository.RemoveDocument(collectionId, documentId);
-
-    private static CollectionResponse ToResponse(Collection collection) =>
-        new(collection.Id, collection.Name, collection.CreatedAt, collection.CollectionDocuments.Count);
-
-    private static DocumentResponse ToDocumentResponse(Document document) =>
-        new(document.Id, document.FileName, document.ContentType, document.FileSize, document.CreatedAt);
 }
