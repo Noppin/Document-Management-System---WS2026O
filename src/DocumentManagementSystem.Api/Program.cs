@@ -1,6 +1,7 @@
 using DocumentManagementSystem.Persistence;
 using DocumentManagementSystem.Api.Services;
 using DocumentManagementSystem.Api.ExceptionHandling;
+using DocumentManagementSystem.Api.Mapping;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,6 +11,7 @@ builder.Services.AddExceptionHandler<ArgumentExceptionHandler>();
 var connectionString = builder.Configuration.GetConnectionString("DocumentManagementDb")
 	?? throw new InvalidOperationException("Connection string 'DocumentManagementDb' is not configured.");
 builder.Services.AddPersistence(connectionString);
+builder.Services.AddAutoMapper(configuration => configuration.AddProfile<MappingProfile>());
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
