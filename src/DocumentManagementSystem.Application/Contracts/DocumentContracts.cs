@@ -1,4 +1,6 @@
-namespace DocumentManagementSystem.Api.Contracts;
+using Microsoft.AspNetCore.Http;
+
+namespace DocumentManagementSystem.Application.Contracts;
 
 public sealed class UploadDocumentRequest
 {

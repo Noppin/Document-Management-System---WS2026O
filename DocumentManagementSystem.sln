@@ -4,6 +4,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocumentManagementSystem.Domain", "src\DocumentManagementSystem.Domain\DocumentManagementSystem.Domain.csproj", "{92BAA5C9-4F0C-4F83-931B-C0F9D59F42C1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocumentManagementSystem.Application", "src\DocumentManagementSystem.Application\DocumentManagementSystem.Application.csproj", "{1B7E8C6D-4A2B-4C3D-9E5F-3A1B2C4D5E6F}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocumentManagementSystem.Persistence", "src\DocumentManagementSystem.Persistence\DocumentManagementSystem.Persistence.csproj", "{A6B1D6C0-3E19-4D2C-8D5B-7F0B1A5E4C92}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocumentManagementSystem.Api", "src\DocumentManagementSystem.Api\DocumentManagementSystem.Api.csproj", "{CD353FC6-B4C8-4FAB-9D73-DB3C7FE74947}"
@@ -20,6 +22,10 @@ Global
 		{92BAA5C9-4F0C-4F83-931B-C0F9D59F42C1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{92BAA5C9-4F0C-4F83-931B-C0F9D59F42C1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{92BAA5C9-4F0C-4F83-931B-C0F9D59F42C1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1B7E8C6D-4A2B-4C3D-9E5F-3A1B2C4D5E6F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1B7E8C6D-4A2B-4C3D-9E5F-3A1B2C4D5E6F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1B7E8C6D-4A2B-4C3D-9E5F-3A1B2C4D5E6F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1B7E8C6D-4A2B-4C3D-9E5F-3A1B2C4D5E6F}.Release|Any CPU.Build.0 = Release|Any CPU
 		{A6B1D6C0-3E19-4D2C-8D5B-7F0B1A5E4C92}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{A6B1D6C0-3E19-4D2C-8D5B-7F0B1A5E4C92}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A6B1D6C0-3E19-4D2C-8D5B-7F0B1A5E4C92}.Release|Any CPU.ActiveCfg = Release|Any CPU

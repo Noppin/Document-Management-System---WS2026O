@@ -1,6 +1,6 @@
-using DocumentManagementSystem.Api.Contracts;
+using DocumentManagementSystem.Application.Contracts;
 
-namespace DocumentManagementSystem.Api.Services;
+namespace DocumentManagementSystem.Application.Services;
 
 public interface ICollectionService
 {

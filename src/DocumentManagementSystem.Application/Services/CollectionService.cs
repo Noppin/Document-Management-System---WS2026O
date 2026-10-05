@@ -1,9 +1,9 @@
 using AutoMapper;
-using DocumentManagementSystem.Api.Contracts;
+using DocumentManagementSystem.Application.Contracts;
 using DocumentManagementSystem.Domain.Entities;
 using DocumentManagementSystem.Persistence;
 
-namespace DocumentManagementSystem.Api.Services;
+namespace DocumentManagementSystem.Application.Services;
 
 public sealed class CollectionService(
     ICollectionRepository collectionRepository,

@@ -1,8 +1,8 @@
 using AutoMapper;
-using DocumentManagementSystem.Api.Contracts;
+using DocumentManagementSystem.Application.Contracts;
 using DocumentManagementSystem.Domain.Entities;
 
-namespace DocumentManagementSystem.Api.Mapping;
+namespace DocumentManagementSystem.Application.Mapping;
 
 public sealed class MappingProfile : Profile
 {
