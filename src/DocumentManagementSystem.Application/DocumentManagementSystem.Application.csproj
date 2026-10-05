@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="AutoMapper" Version="15.1.3" />
+    <ProjectReference Include="..\DocumentManagementSystem.Domain\DocumentManagementSystem.Domain.csproj" />
+    <ProjectReference Include="..\DocumentManagementSystem.Persistence\DocumentManagementSystem.Persistence.csproj" />
+  </ItemGroup>
+</Project>

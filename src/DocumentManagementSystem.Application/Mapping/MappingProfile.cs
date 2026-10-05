@@ -1,8 +1,8 @@
 using AutoMapper;
-using DocumentManagementSystem.Api.Contracts;
+using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Domain.Entities;
 
-namespace DocumentManagementSystem.Api.Mapping;
+namespace DocumentManagementSystem.Application.Mapping;
 
 public sealed class MappingProfile : Profile
 {
@@ -10,7 +10,7 @@ public sealed class MappingProfile : Profile
     {
         CreateMap<Document, DocumentResponse>();
         CreateMap<Collection, CollectionResponse>()
-            .ForMember(destination => destination.DocumentCount,
+            .ForCtorParam(nameof(CollectionResponse.DocumentCount),
                 options => options.MapFrom(source => source.CollectionDocuments.Count));
     }
 }

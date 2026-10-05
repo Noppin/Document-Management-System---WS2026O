@@ -1,5 +1,5 @@
-using DocumentManagementSystem.Api.Contracts;
-using DocumentManagementSystem.Api.Services;
+using DocumentManagementSystem.Application.Dtos;
+using DocumentManagementSystem.Application.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DocumentManagementSystem.Api.Controllers;

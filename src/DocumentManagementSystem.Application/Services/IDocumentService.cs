@@ -1,6 +1,6 @@
-using DocumentManagementSystem.Api.Contracts;
+using DocumentManagementSystem.Application.Dtos;
 
-namespace DocumentManagementSystem.Api.Services;
+namespace DocumentManagementSystem.Application.Services;
 
 public interface IDocumentService
 {
