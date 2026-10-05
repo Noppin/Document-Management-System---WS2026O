@@ -1,5 +1,5 @@
 using AutoMapper;
-using DocumentManagementSystem.Application.Contracts;
+using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Domain.Entities;
 
 namespace DocumentManagementSystem.Application.Mapping;

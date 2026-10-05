@@ -1,4 +1,4 @@
-using DocumentManagementSystem.Application.Contracts;
+using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Application.Services;
 using Microsoft.AspNetCore.Mvc;
 

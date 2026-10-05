@@ -1,4 +1,4 @@
-using DocumentManagementSystem.Application.Contracts;
+using DocumentManagementSystem.Application.Dtos;
 
 namespace DocumentManagementSystem.Application.Services;
 

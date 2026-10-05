@@ -1,4 +1,4 @@
-namespace DocumentManagementSystem.Application.Contracts;
+namespace DocumentManagementSystem.Application.Dtos;
 
 public sealed class CreateCollectionRequest
 {
