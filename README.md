@@ -33,7 +33,7 @@ dotnet test DocumentManagementSystem.sln
 ## Start with Docker Compose
 
 Docker Desktop must be running. From the repository root, build and start the
-PostgreSQL database and REST API:
+PostgreSQL database, the REST API and the React frontend:
 
 ```powershell
 docker compose build
@@ -78,6 +78,45 @@ Remove the database volume as well:
 ```powershell
 docker compose down -v
 ```
+
+## Frontend
+
+`docker compose up -d` starts all three services: `postgres`, `api` and
+`frontend`. nginx serves the production build of the React application on port
+`80`:
+
+```text
+http://localhost/
+```
+
+The frontend is served as static files from `frontend/dist`; the Vite
+development server is not required in production. nginx forwards `/api/*`
+requests to the `api` container, and the browser calls the API through a
+relative URL, so no host or port has to be configured on the client side.
+
+### Frontend development
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+The Vite development server runs on <http://localhost:5173> and proxies `/api`
+to `http://localhost:8080`, so the REST API has to be reachable on that port.
+`docker compose up -d` starts it.
+
+Other frontend commands:
+
+```bash
+cd frontend
+npm run build     # type-check and production build into frontend/dist
+npm test          # run the frontend test suite once
+npm run test:watch
+```
+
+`npm run build` is the same command the frontend Dockerfile runs, so a build
+that fails locally also fails in `docker compose build`.
 
 ## Database migrations
 
@@ -217,6 +256,24 @@ on port `5000`:
 
 ```powershell
 ./scripts/upload-document.ps1 -File http/sample.pdf -BaseUrl http://localhost:5000
+```
+
+## Smoke test
+
+```bash
+./scripts/smoke-test.sh
+```
+
+The script verifies the Sprint-2 setup end to end: all Compose services are
+running, nginx serves the React build, SPA routes survive a browser refresh,
+`/api/*` reaches the REST API, the frontend container resolves the API container
+by service name and PostgreSQL accepts connections.
+
+It prints one line per check and exits non-zero if any check fails, so it can be
+used as a build gate. The base URLs can be overridden:
+
+```bash
+FRONTEND_URL=http://localhost API_URL=http://localhost:8080 ./scripts/smoke-test.sh
 ```
 
 ## Environment settings
