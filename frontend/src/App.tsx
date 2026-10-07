@@ -5,7 +5,7 @@ import { CollectionsPage } from "./pages/CollectionsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DocumentDetailPlaceholderPage } from "./pages/DocumentDetailPlaceholderPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
-import { UploadPage } from "./pages/UploadPage";
+import { ValidatedUploadPage } from "./pages/ValidatedUploadPage";
 
 export default function App() {
   return (
@@ -13,7 +13,7 @@ export default function App() {
       <AppShell>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
-          <Route path="/upload" element={<UploadPage />} />
+          <Route path="/upload" element={<ValidatedUploadPage />} />
 
           <Route
             path="/documents/:id"
