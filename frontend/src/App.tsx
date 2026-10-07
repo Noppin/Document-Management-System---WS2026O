@@ -1,6 +1,6 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/layout/AppShell";
-import { CollectionDetailPlaceholderPage } from "./pages/CollectionDetailPlaceholderPage";
+import { CollectionDetailPage } from "./pages/CollectionDetailPage";
 import { CollectionsManagementPage } from "./pages/CollectionsManagementPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DocumentDetailPage } from "./pages/DocumentDetailPage";
@@ -24,7 +24,7 @@ export default function App() {
 
           <Route
             path="/collections/:id"
-            element={<CollectionDetailPlaceholderPage />}
+            element={<CollectionDetailPage />}
           />
 
           <Route path="*" element={<NotFoundPage />} />
