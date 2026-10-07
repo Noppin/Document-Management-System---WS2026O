@@ -1,7 +1,7 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/layout/AppShell";
 import { CollectionDetailPlaceholderPage } from "./pages/CollectionDetailPlaceholderPage";
-import { CollectionsPage } from "./pages/CollectionsPage";
+import { CollectionsManagementPage } from "./pages/CollectionsManagementPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DocumentDetailPage } from "./pages/DocumentDetailPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
@@ -20,7 +20,7 @@ export default function App() {
             element={<DocumentDetailPage />}
           />
 
-          <Route path="/collections" element={<CollectionsPage />} />
+          <Route path="/collections" element={<CollectionsManagementPage />} />
 
           <Route
             path="/collections/:id"
