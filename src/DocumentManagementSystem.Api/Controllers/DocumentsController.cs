@@ -30,6 +30,17 @@ public sealed class DocumentsController(IDocumentService service) : ControllerBa
         return document is null ? NotFound() : Ok(document);
     }
 
+    [HttpGet("{id:guid}/content")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public IActionResult Download(Guid id)
+    {
+        var document = service.GetDownload(id);
+        return document is null
+            ? NotFound()
+            : File(document.Content, document.ContentType, document.FileName);
+    }
+
     [HttpDelete("{id:guid}")]
     public IActionResult Delete(Guid id) => service.Delete(id) ? NoContent() : NotFound();
 }

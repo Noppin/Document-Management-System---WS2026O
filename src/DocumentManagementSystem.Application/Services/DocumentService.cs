@@ -55,5 +55,13 @@ public sealed class DocumentService(IDocumentRepository documents, IMapper mappe
         return document is null ? null : mapper.Map<DocumentResponse>(document);
     }
 
+    public DocumentDownloadResponse? GetDownload(Guid id)
+    {
+        var document = documents.GetById(id);
+        return document is null
+            ? null
+            : new DocumentDownloadResponse(document.Content, document.ContentType, document.FileName);
+    }
+
     public bool Delete(Guid id) => documents.Delete(id);
 }

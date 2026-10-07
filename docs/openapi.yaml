@@ -72,6 +72,22 @@ paths:
       responses:
         '204': { description: Deleted }
         '404': { description: Document not found }
+  /documents/{id}/content:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Documents]
+      summary: Download the stored PDF content
+      responses:
+        '200':
+          description: PDF file
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        '404': { description: Document not found }
   /collections:
     post:
       tags: [Collections]

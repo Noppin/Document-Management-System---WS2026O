@@ -3,7 +3,7 @@ import { AppShell } from "./components/layout/AppShell";
 import { CollectionDetailPlaceholderPage } from "./pages/CollectionDetailPlaceholderPage";
 import { CollectionsPage } from "./pages/CollectionsPage";
 import { DashboardPage } from "./pages/DashboardPage";
-import { DocumentDetailPlaceholderPage } from "./pages/DocumentDetailPlaceholderPage";
+import { DocumentDetailPage } from "./pages/DocumentDetailPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { ValidatedUploadPage } from "./pages/ValidatedUploadPage";
 
@@ -17,7 +17,7 @@ export default function App() {
 
           <Route
             path="/documents/:id"
-            element={<DocumentDetailPlaceholderPage />}
+            element={<DocumentDetailPage />}
           />
 
           <Route path="/collections" element={<CollectionsPage />} />

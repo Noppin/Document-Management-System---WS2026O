@@ -13,3 +13,10 @@ public sealed record DocumentResponse(
     string ContentType,
     long FileSize,
     DateTimeOffset CreatedAt);
+
+public sealed record DocumentDownloadResponse(
+    byte[] Content,
+    string ContentType,
+    string FileName);
+
+    
