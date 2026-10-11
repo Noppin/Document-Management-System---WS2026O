@@ -2,11 +2,11 @@
 .SYNOPSIS
     Uploads a PDF document to the Document Management System REST API.
 .EXAMPLE
-    ./scripts/upload-document.ps1 -File http/sample.pdf -BaseUrl http://localhost:8080
+    ./scripts/upload-document.ps1 -File http/sample.pdf -BaseUrl http://localhost/api
 #>
 param(
     [string]$File = "http/sample.pdf",
-    [string]$BaseUrl = "http://localhost:8080"
+    [string]$BaseUrl = "http://localhost/api"
 )
 
 if (-not (Test-Path -Path $File)) {
