@@ -1,10 +1,12 @@
 using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Application.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DocumentManagementSystem.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("collections")]
 public sealed class CollectionsController(ICollectionService service) : ControllerBase
 {
