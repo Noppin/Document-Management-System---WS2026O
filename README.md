@@ -1,25 +1,21 @@
-Document Management System
+# Document Management System
 
-ASP.NET Core Web API for document uploads.
+React frontend + ASP.NET Core Web API for document uploads, with PostgreSQL for
+metadata and Keycloak for authentication.
 
 ## Project management
 
 Tickets and task tracking are managed in Jira:
-<https://nipponlama.atlassian.net/jira/software/projects/DMS/boards/1?filter=assignee%20%3D%20empty&groupBy=none>
+<https://nipponlama.atlassian.net/jira/software/projects/DMS/boards/1>
 
 ## Requirements
 
 - .NET 10 SDK
-
-Check the installed SDK:
-
-```powershell
-dotnet --list-sdks
-```
+- Docker (Docker Desktop running)
 
 ## Restore and build
 
-Run from the repository root:
+From the repository root:
 
 ```powershell
 dotnet restore DocumentManagementSystem.sln
@@ -27,27 +23,28 @@ dotnet build DocumentManagementSystem.sln
 dotnet test DocumentManagementSystem.sln
 ```
 
-`dotnet test` runs the repository unit tests in
+`dotnet test` runs the unit tests in
 `tests/DocumentManagementSystem.Persistence.Tests` against an in-memory database.
 
 ## Start with Docker Compose
 
-Docker Desktop must be running. From the repository root, build and start the
-PostgreSQL database, the REST API and the React frontend:
-
-```powershell
-docker compose build
-docker compose up -d
-```
-
-Production shortcut:
+Docker Desktop must be running. From the repository root:
 
 ```powershell
 docker compose up -d --build
 ```
 
-The PostgreSQL container uses the persistent `postgres-data` volume. Uploaded
-documents therefore remain available after the API container is restarted.
+This starts PostgreSQL, the REST API, the React frontend and Keycloak. Wait about
+a minute on the first start (Keycloak imports the realm), then open:
+
+```text
+http://localhost/
+```
+
+nginx serves the frontend and proxies `/api/*` to the API container, so no host or
+port has to be configured on the client. The `api` and `postgres` containers are
+not published to the host; the local `docker-compose.override.yml` maps the API to
+`http://localhost:8080` and PostgreSQL to `localhost:5433` for debugging.
 
 Check the running services:
 
@@ -58,21 +55,10 @@ Invoke-WebRequest http://localhost/api/health -UseBasicParsing
 
 The expected health response is `200 OK` with `{"status":"ok"}`.
 
-Open the API through nginx at:
+The PostgreSQL container keeps the `postgres-data` volume, so uploaded documents
+remain available after a restart.
 
-```text
-http://localhost/api
-```
-
-The `api` and `postgres` containers are not published to the host by default, so
-the backend stays behind nginx. For direct debugging, the
-`docker-compose.override.yml` maps the API to `http://localhost:8080` and
-PostgreSQL to `localhost:5433`.
-
-Swagger is disabled in the Docker Production environment. Use the HTTP client
-or curl requests in the `http` folder to call the endpoints.
-
-Stop the containers while keeping the database volume:
+Stop the containers (keeps the database volume):
 
 ```powershell
 docker compose down
@@ -84,236 +70,76 @@ Remove the database volume as well:
 docker compose down -v
 ```
 
-## Frontend
+## Login (Keycloak)
 
-`docker compose up -d` starts all three services: `postgres`, `api` and
-`frontend`. nginx serves the production build of the React application on port
-`80`:
+The REST API is protected with OAuth2 / OpenID Connect; authentication is
+delegated to the Keycloak service, so the user database lives in Keycloak. The
+frontend logs the user in (`login-required`), stores the access token and sends it
+as a `Bearer` token to the API, which validates it against the `dms` realm and the
+`api` audience. The `documents` and `collections` endpoints return `401` without a
+token; `GET /health` is public.
 
-```text
-http://localhost/
-```
+Test users:
 
-The frontend is served as static files from `frontend/dist`; the Vite
-development server is not required in production. nginx forwards `/api/*`
-requests to the `api` container, and the browser calls the API through a
-relative URL, so no host or port has to be configured on the client side.
+| User    | Password   | Role        |
+| ------- | ---------- | ----------- |
+| `alice` | `password` | user        |
+| `admin` | `admin`    | admin, user |
 
-### Frontend development
+Keycloak admin console: <http://localhost:8180> (`admin` / `admin`). The realm and
+test users are versioned in
+[keycloak/realm-export.json](keycloak/realm-export.json).
 
-```bash
-cd frontend
-npm ci
-npm run dev
-```
-
-The Vite development server runs on <http://localhost:5173> and proxies `/api`
-to `http://localhost:8080`, so the REST API has to be reachable on that port.
-`docker compose up -d` starts it.
-
-Other frontend commands:
-
-```bash
-cd frontend
-npm run build     # type-check and production build into frontend/dist
-npm test          # run the frontend test suite once
-npm run test:watch
-```
-
-`npm run build` is the same command the frontend Dockerfile runs, so a build
-that fails locally also fails in `docker compose build`.
-
-## Authentication (Keycloak)
-
-The REST API is protected with OAuth2 / OpenID Connect. Authentication is
-delegated to a Keycloak authorization server that runs as the `keycloak`
-service in `docker compose`; the user database lives in Keycloak.
-
-- Keycloak admin console: `http://localhost:8180` (`admin` / `admin`)
-- Realm: `dms`
-- Clients: `frontend` (public SPA, Authorization Code flow with PKCE) and
-  `api` (bearer-only resource server)
-- Test users: `alice` / `password` (role `user`) and `admin` / `admin`
-  (roles `admin`, `user`)
-
-The frontend logs the user in through Keycloak (`login-required`), stores the
-access token and sends it as a `Bearer` token to the REST API. The backend
-validates the token against the `dms` realm (`Keycloak:Authority`) and the
-`api` audience (`Keycloak:Audience`). The `documents` and `collections`
-endpoints require a valid token and return `401` without one; `GET /health`
-stays public.
-
-The realm and test users are versioned in
-[keycloak/realm-export.json](keycloak/realm-export.json) and imported on
-startup (`--import-realm`).
-
-### Calling the API with a token
-
-Request an access token from Keycloak with the password grant (the `frontend`
-client has direct access grants enabled for testing):
+### Call the API with a token
 
 ```bash
 TOKEN=$(curl -s -X POST \
   http://localhost:8180/realms/dms/protocol/openid-connect/token \
   -d grant_type=password -d client_id=frontend \
   -d username=alice -d password=password | jq -r .access_token)
-```
 
-Then call a protected endpoint:
-
-```bash
 curl -H "Authorization: Bearer $TOKEN" http://localhost/api/documents
 ```
 
-Without the header the API answers `401 Unauthorized`.
+## Frontend
 
-## Database migrations
+nginx serves the production build on port `80`. The Vite development server is not
+required in production.
 
-The API applies pending EF Core migrations automatically on startup
-(`Database.Migrate()`), so the PostgreSQL schema is created and kept up to date
-when the containers start.
-
-If the `postgres-data` volume was created by an older build that used
-`EnsureCreated()` (before migrations were introduced), the startup migration
-fails because the tables already exist without a migrations history. Reset the
-volume once and start again:
-
-```powershell
-docker compose down -v
-docker compose up -d --build
+```bash
+cd frontend
+npm ci
+npm run dev     # dev server on http://localhost:5173, proxies /api to :8080
+npm run build   # type-check and production build into dist
+npm test        # run the test suite once
 ```
 
-## Stop the application
-
-When the application was started with Docker Compose, stop the API and
-PostgreSQL containers with:
-
-```powershell
-docker compose down
-```
-
-This keeps the `postgres-data` volume and its data. To stop only the API
-container, use:
-
-```powershell
-docker compose stop api
-```
-
-When the API was started with `dotnet run`, press `Ctrl+C` in the terminal
-running the API. If port `5000` remains occupied, free it with:
-
-```powershell
-Get-NetTCPConnection -LocalPort 5000 -State Listen |
-	Select-Object -ExpandProperty OwningProcess -Unique |
-	Stop-Process -Force
-```
-
-## Run the API locally
-
-Development shortcut with Swagger:
-
-```powershell
-docker compose up -d postgres keycloak; dotnet run --project src\DocumentManagementSystem.Api\DocumentManagementSystem.Api.csproj --environment Development
-```
-
-Open Swagger at `http://localhost:5000/swagger`.
-
-### Development
-
-In [launchSettings.json](src/DocumentManagementSystem.Api/Properties/launchSettings.json), change:
-
-```json
-"ASPNETCORE_ENVIRONMENT": "Production"
-```
-
-to:
-
-```json
-"ASPNETCORE_ENVIRONMENT": "Development"
-```
-
-Then start the API:
-
-```powershell
-dotnet run --project src\DocumentManagementSystem.Api\DocumentManagementSystem.Api.csproj
-```
-
-Make sure PostgreSQL and Keycloak are running first. You can start the Compose
-database and Keycloak without starting the API:
+## Run the API locally (Swagger)
 
 ```powershell
 docker compose up -d postgres keycloak
+dotnet run --project src\DocumentManagementSystem.Api\DocumentManagementSystem.Api.csproj --environment Development
 ```
 
-The local API uses the connection string in
-[appsettings.json](src/DocumentManagementSystem.Api/appsettings.json). Start
-the API with:
-
-```powershell
-dotnet run --project src\DocumentManagementSystem.Api\DocumentManagementSystem.Api.csproj
-```
-
-Open Swagger at:
-
-```text
-http://localhost:5000/swagger
-```
+Swagger: <http://localhost:5000/swagger>.
 
 ## Endpoints
 
-All `documents` and `collections` endpoints require a Keycloak access token
-(`Authorization: Bearer …`) and return `401` without one. See
-[Authentication (Keycloak)](#authentication-keycloak). The health check below
-is public.
+`documents`/`collections` require a Keycloak access token; `GET /health` is public.
+The API applies pending EF Core migrations automatically on startup
+(`Database.Migrate()`), so the PostgreSQL schema is created and kept up to date.
 
-### Health check
-
-```powershell
-Invoke-WebRequest http://localhost:5000/health -UseBasicParsing
-```
-
-Expected status: `200 OK`.
-
-### Upload a PDF with Swagger
-
-1. Open `http://localhost:5000/swagger` in Development.
-2. Click **Authorize**, paste a Keycloak access token (see
-   [Calling the API with a token](#calling-the-api-with-a-token)) and confirm.
-3. Expand `POST /documents`.
-4. Click **Try it out**.
-5. Select a PDF using **Choose File**.
-6. Click **Execute**.
-
-Valid uploads must be non-empty PDF files with the `application/pdf` content type and a `%PDF-` header. Successful uploads return `201 Created`; invalid uploads return `400 Bad Request`.
+To try the API in Swagger, click **Authorize**, paste a Keycloak access token (see
+[Call the API with a token](#call-the-api-with-a-token)) and use the endpoints.
+Uploads must be non-empty PDFs with the `application/pdf` content type and a
+`%PDF-` header.
 
 ## Manual API testing
 
-### HTTP client
-
-Open [http/paperless.http](http/paperless.http) in Visual Studio or Visual Studio
-Code (REST Client) and run the requests. The first request fetches a Keycloak
-access token and every following request sends it automatically; it covers the
-health check, document upload/list/get/delete and the collection endpoints.
-
-### Upload via curl
-
-Upload the bundled sample PDF with one of the helper scripts:
-
-```powershell
-./scripts/upload-document.ps1
-```
-
-```bash
-./scripts/upload-document.sh
-```
-
-Both default to `http/sample.pdf` and `http://localhost/api` (Docker Compose,
-through nginx). Pass a file path and base URL to override them, for example a
-local `dotnet run` on port `5000`:
-
-```powershell
-./scripts/upload-document.ps1 -File http/sample.pdf -BaseUrl http://localhost:5000
-```
+- [http/paperless.http](http/paperless.http) — REST Client requests; the first
+  request fetches a Keycloak token and the rest reuse it.
+- `./scripts/upload-document.ps1` / `./scripts/upload-document.sh` — upload the
+  bundled `http/sample.pdf` (defaults to `http://localhost/api`).
 
 ## Smoke test
 
@@ -321,48 +147,15 @@ local `dotnet run` on port `5000`:
 ./scripts/smoke-test.sh
 ```
 
-The script verifies the Sprint-2 setup end to end: all Compose services are
-running, nginx serves the React build, SPA routes survive a browser refresh,
-`/api/*` reaches the REST API (protected endpoints answer `401` without a
-token and `200` with one), Keycloak serves the `dms` realm, the frontend
-container resolves the API container by service name and PostgreSQL accepts
-connections.
-
-It prints one line per check and exits non-zero if any check fails, so it can be
-used as a build gate. The base URLs can be overridden:
-
-```bash
-FRONTEND_URL=http://localhost API_URL=http://localhost/api KEYCLOAK_URL=http://localhost:8180 ./scripts/smoke-test.sh
-```
-
-## Environment settings
-
-The default environment is configured in [launchSettings.json](src/DocumentManagementSystem.Api/Properties/launchSettings.json). The application enables Swagger only when `ASPNETCORE_ENVIRONMENT` is `Development`.
+Verifies the Compose setup end to end: services running, nginx serves the build,
+SPA routes, protected endpoints answer `401` without and `200` with a token,
+Keycloak serves the `dms` realm and PostgreSQL accepts connections. Exits non-zero
+on failure.
 
 ## CI & Releases
 
-Two GitHub Actions workflows run in
-[.github/workflows](.github/workflows):
+GitHub Actions in [.github/workflows](.github/workflows):
 
-- **`ci.yml`** runs on every pull request and push to `dev` and `main`. It
-  builds and tests the backend (`dotnet restore`/`build`/`test`) and the
-  frontend (`npm ci`/`build`/`test`).
-- **`sprint-release.yml`** creates a GitHub release when a tag matching
-  `sprint-[0-9]+` (for example `sprint-3`) is pushed. The tagged commit must
-  already be on `main`; the workflow then creates the release and GitHub
-  attaches the source code zip automatically.
-
-### Creating a sprint release
-
-The sprint submission is the state of `main`, so merge the sprint work into
-`main` first, then tag that commit:
-
-```bash
-git checkout main
-git pull
-git tag sprint-3
-git push origin sprint-3
-```
-
-`origin` must point to the sprint commit on `main`, otherwise the release job
-fails with `zeigt auf keinen Commit in main`.
+- `ci.yml` builds and tests backend and frontend on pushes/PRs to `dev` and `main`.
+- `sprint-release.yml` creates a release when a `sprint-<n>` tag is pushed. The
+  tagged commit must be on `main`; GitHub then attaches the source zip.
