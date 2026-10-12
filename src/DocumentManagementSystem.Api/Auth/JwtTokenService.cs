@@ -1,7 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using DocumentManagementSystem.Application.Dtos;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -11,15 +10,13 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options)
 {
     private readonly JwtOptions jwt = options.Value;
 
-    public AuthResponse CreateToken(AuthenticatedUser user)
+    public LoginResponse CreateToken(string username)
     {
         var expiresAt = DateTimeOffset.UtcNow.AddMinutes(jwt.ExpirationMinutes);
         var claims = new[]
         {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim(ClaimTypes.Name, user.Username),
-            new Claim(JwtRegisteredClaimNames.UniqueName, user.Username),
+            new Claim(JwtRegisteredClaimNames.Sub, username),
+            new Claim(ClaimTypes.Name, username),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
@@ -29,14 +26,12 @@ public sealed class JwtTokenService(IOptions<JwtOptions> options)
             issuer: jwt.Issuer,
             audience: jwt.Audience,
             claims: claims,
-            notBefore: DateTime.UtcNow,
             expires: expiresAt.UtcDateTime,
             signingCredentials: credentials);
 
-        return new AuthResponse(
+        return new LoginResponse(
             new JwtSecurityTokenHandler().WriteToken(token),
             expiresAt,
-            user.Id,
-            user.Username);
+            username);
     }
 }

@@ -13,7 +13,6 @@ public static class DependencyInjection
             options.UseNpgsql(connectionString));
         services.AddScoped<IDocumentRepository, DocumentRepository>();
         services.AddScoped<ICollectionRepository, CollectionRepository>();
-        services.AddScoped<IUserRepository, UserRepository>();
         return services;
     }
 }

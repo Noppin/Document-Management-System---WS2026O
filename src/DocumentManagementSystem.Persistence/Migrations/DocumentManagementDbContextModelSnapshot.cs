@@ -56,38 +56,6 @@ namespace DocumentManagementSystem.Persistence.Migrations
                     b.ToTable("collection_documents", (string)null);
                 });
 
-            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.User", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("NormalizedUsername")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("PasswordHash")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)");
-
-                    b.Property<string>("Username")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("NormalizedUsername")
-                        .IsUnique();
-
-                    b.ToTable("users", (string)null);
-                });
-
             modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.Document", b =>
                 {
                     b.Property<Guid>("Id")
@@ -156,38 +124,6 @@ namespace DocumentManagementSystem.Persistence.Migrations
             modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.Collection", b =>
                 {
                     b.Navigation("CollectionDocuments");
-                });
-
-            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.User", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("NormalizedUsername")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<string>("PasswordHash")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)");
-
-                    b.Property<string>("Username")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("NormalizedUsername")
-                        .IsUnique();
-
-                    b.ToTable("users", (string)null);
                 });
 
             modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.Document", b =>

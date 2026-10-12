@@ -1,51 +1,28 @@
 using DocumentManagementSystem.Api.Auth;
-using DocumentManagementSystem.Application.Dtos;
-using DocumentManagementSystem.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace DocumentManagementSystem.Api.Controllers;
 
 [ApiController]
-[AllowAnonymous]
 [Route("auth")]
 public sealed class AuthController(
-    IAuthService authService,
-    JwtTokenService tokenService) : ControllerBase
+    JwtTokenService tokenService,
+    IOptions<JwtOptions> options) : ControllerBase
 {
-    [HttpPost("register")]
-    [ProducesResponseType<AuthResponse>(StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<AuthResponse>> Register(
-        RegisterRequest request,
-        CancellationToken cancellationToken)
-    {
-        var result = await authService.RegisterAsync(request, cancellationToken);
+    private readonly JwtOptions jwt = options.Value;
 
-        if (!result.Succeeded || result.User is null)
-        {
-            return Conflict(new ProblemDetails
-            {
-                Title = "Username already exists",
-                Detail = "Choose a different username.",
-                Status = StatusCodes.Status409Conflict
-            });
-        }
-
-        return StatusCode(StatusCodes.Status201Created, tokenService.CreateToken(result.User));
-    }
-
+    [AllowAnonymous]
     [HttpPost("login")]
-    [ProducesResponseType<AuthResponse>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<LoginResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<AuthResponse>> Login(
-        LoginRequest request,
-        CancellationToken cancellationToken)
+    public ActionResult<LoginResponse> Login(LoginRequest request)
     {
-        var user = await authService.AuthenticateAsync(request, cancellationToken);
-        if (user is null)
+        var validUsername = string.Equals(request.Username, jwt.Username, StringComparison.Ordinal);
+        var validPassword = string.Equals(request.Password, jwt.Password, StringComparison.Ordinal);
+
+        if (!validUsername || !validPassword)
         {
             return Unauthorized(new ProblemDetails
             {
@@ -55,6 +32,6 @@ public sealed class AuthController(
             });
         }
 
-        return Ok(tokenService.CreateToken(user));
+        return Ok(tokenService.CreateToken(request.Username));
     }
 }
