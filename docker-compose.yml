@@ -21,6 +21,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DocumentManagementDb: Host=postgres;Port=5432;Database=document_management;Username=postgres;Password=postgres
+      Keycloak__Authority: http://keycloak:8080/realms/dms
     depends_on:
       postgres:
         condition: service_healthy
@@ -33,6 +34,19 @@ services:
       - "80:80"
     depends_on:
       - api
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0.7
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: http://localhost:8180
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+    ports:
+      - "8180:8080"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm.json:ro
 
 volumes:
   postgres-data:

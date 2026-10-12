@@ -1,6 +1,8 @@
 using DocumentManagementSystem.Persistence;
 using DocumentManagementSystem.Application;
 using DocumentManagementSystem.Api.ExceptionHandling;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,8 +14,42 @@ var connectionString = builder.Configuration.GetConnectionString("DocumentManage
 builder.Services.AddPersistence(connectionString);
 builder.Services.AddApplication();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+	options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+	{
+		Name = "Authorization",
+		Type = SecuritySchemeType.Http,
+		Scheme = "bearer",
+		BearerFormat = "JWT",
+		In = ParameterLocation.Header,
+		Description = "Keycloak access token.",
+	});
+	options.AddSecurityRequirement(new OpenApiSecurityRequirement
+	{
+		{
+			new OpenApiSecurityScheme
+			{
+				Reference = new OpenApiReference
+				{
+					Type = ReferenceType.SecurityScheme,
+					Id = "Bearer",
+				},
+			},
+			Array.Empty<string>()
+		},
+	});
+});
 builder.Services.AddControllers();
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+	.AddJwtBearer(options =>
+	{
+		options.Authority = builder.Configuration["Keycloak:Authority"]
+			?? throw new InvalidOperationException("Keycloak authority is not configured.");
+		options.Audience = builder.Configuration["Keycloak:Audience"];
+		options.RequireHttpsMetadata = false;
+	});
+builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
@@ -23,6 +59,9 @@ app.Services.ApplyMigrations();
 
 app.UseSwagger();
 app.UseSwaggerUI();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 

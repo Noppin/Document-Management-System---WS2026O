@@ -1,10 +1,22 @@
 @baseUrl = http://localhost:8080
+@keycloakUrl = http://localhost:8180
+@realm = dms
+@clientId = frontend
 
+### Get access token (alice / password)
+# @name token
+POST {{keycloakUrl}}/realms/{{realm}}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id={{clientId}}&username=alice&password=password
+
+### Health (public)
 GET {{baseUrl}}/health
 
 ### Upload PDF
 # Replace the file path with an existing PDF before sending.
 POST {{baseUrl}}/documents
+Authorization: Bearer {{token.response.body.access_token}}
 Content-Type: multipart/form-data; boundary=boundary
 
 --boundary
@@ -16,17 +28,21 @@ Content-Type: application/pdf
 
 ### List documents
 GET {{baseUrl}}/documents
+Authorization: Bearer {{token.response.body.access_token}}
 
 ### Get document
 # Replace the ID with the ID returned by the upload request.
 GET {{baseUrl}}/documents/YOUR_DOCUMENT_ID
+Authorization: Bearer {{token.response.body.access_token}}
 
 ### Delete document
 # Replace the ID with the ID returned by the upload request.
 DELETE {{baseUrl}}/documents/YOUR_DOCUMENT_ID
+Authorization: Bearer {{token.response.body.access_token}}
 
 ### Create collection
 POST {{baseUrl}}/collections
+Authorization: Bearer {{token.response.body.access_token}}
 Content-Type: application/json
 
 {
@@ -35,13 +51,16 @@ Content-Type: application/json
 
 ### List collections
 GET {{baseUrl}}/collections
+Authorization: Bearer {{token.response.body.access_token}}
 
 ### Get collection
 # Replace the ID with the ID returned by the create collection request.
 GET {{baseUrl}}/collections/YOUR_COLLECTION_ID
+Authorization: Bearer {{token.response.body.access_token}}
 
 ### Add document to collection
 POST {{baseUrl}}/collections/YOUR_COLLECTION_ID/documents
+Authorization: Bearer {{token.response.body.access_token}}
 Content-Type: application/json
 
 {
@@ -50,3 +69,4 @@ Content-Type: application/json
 
 ### Remove document from collection
 DELETE {{baseUrl}}/collections/YOUR_COLLECTION_ID/documents/YOUR_DOCUMENT_ID
+Authorization: Bearer {{token.response.body.access_token}}

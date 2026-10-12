@@ -1,0 +1,36 @@
+# Creates a GitHub release (and the source zip bundle) for sprint tags.
+# Based on the template provided in the course:
+# https://github.com/danielwagn3r/sprint-release (MIT-0)
+name: Sprint release
+
+on:
+  push:
+    tags:
+      - 'sprint-[0-9]+'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Ensure tagged commit is on main
+        run: |
+          status=$(gh api "repos/$GH_REPO/compare/${GITHUB_SHA}...main" --jq .status)
+          if [ "$status" != "ahead" ] && [ "$status" != "identical" ]; then
+            echo "::error::$TAG zeigt auf keinen Commit in main (status: $status)"
+            exit 1
+          fi
+
+      - name: Create release
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG existiert bereits"
+          else
+            gh release create "$TAG" --verify-tag --title "$TAG" --generate-notes
+          fi

@@ -34,14 +34,44 @@ async function readError(response: Response): Promise<ApiError> {
   return new ApiError(message, response.status, details);
 }
 
+type AuthTokenProvider = () => string | undefined | Promise<string | undefined>;
+type UnauthorizedHandler = () => void;
+
+let authTokenProvider: AuthTokenProvider | undefined;
+let unauthorizedHandler: UnauthorizedHandler | undefined;
+
+export function setAuthTokenProvider(provider?: AuthTokenProvider): void {
+  authTokenProvider = provider;
+}
+
+export function setUnauthorizedHandler(handler?: UnauthorizedHandler): void {
+  unauthorizedHandler = handler;
+}
+
+async function resolveAuthorizationHeader(): Promise<Record<string, string>> {
+  if (!authTokenProvider) {
+    return {};
+  }
+
+  const token = await authTokenProvider();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const authorization = await resolveAuthorizationHeader();
+
   const response = await fetch(`/api${path}`, {
     ...init,
     headers: {
       Accept: 'application/json',
+      ...authorization,
       ...init?.headers,
     },
   });
+
+  if (response.status === 401) {
+    unauthorizedHandler?.();
+  }
 
   if (!response.ok) {
     throw await readError(response);
