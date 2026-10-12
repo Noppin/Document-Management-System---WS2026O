@@ -6,7 +6,6 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <ProjectReference Include="..\DocumentManagementSystem.Application\DocumentManagementSystem.Application.csproj" />
-    <ProjectReference Include="..\DocumentManagementSystem.Domain\DocumentManagementSystem.Domain.csproj" />
     <ProjectReference Include="..\DocumentManagementSystem.Persistence\DocumentManagementSystem.Persistence.csproj" />
   </ItemGroup>
 </Project>

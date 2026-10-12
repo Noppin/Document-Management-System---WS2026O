@@ -1,7 +1,6 @@
 using DocumentManagementSystem.Persistence;
 using DocumentManagementSystem.Application;
 using DocumentManagementSystem.Api.ExceptionHandling;
-using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,11 +19,7 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 
-using (var scope = app.Services.CreateScope())
-{
-	var dbContext = scope.ServiceProvider.GetRequiredService<DocumentManagementDbContext>();
-	dbContext.Database.Migrate();
-}
+app.Services.ApplyMigrations();
 
 app.UseSwagger();
 app.UseSwaggerUI();
