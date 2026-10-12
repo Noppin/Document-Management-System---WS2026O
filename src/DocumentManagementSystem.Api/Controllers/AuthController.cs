@@ -1,28 +1,51 @@
 using DocumentManagementSystem.Api.Auth;
+using DocumentManagementSystem.Application.Dtos;
+using DocumentManagementSystem.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 
 namespace DocumentManagementSystem.Api.Controllers;
 
 [ApiController]
+[AllowAnonymous]
 [Route("auth")]
 public sealed class AuthController(
-    JwtTokenService tokenService,
-    IOptions<JwtOptions> options) : ControllerBase
+    IAuthService authService,
+    JwtTokenService tokenService) : ControllerBase
 {
-    private readonly JwtOptions jwt = options.Value;
-
-    [AllowAnonymous]
-    [HttpPost("login")]
-    [ProducesResponseType<LoginResponse>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public ActionResult<LoginResponse> Login(LoginRequest request)
+    [HttpPost("register")]
+    [ProducesResponseType<AuthResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<AuthResponse>> Register(
+        RegisterRequest request,
+        CancellationToken cancellationToken)
     {
-        var validUsername = string.Equals(request.Username, jwt.Username, StringComparison.Ordinal);
-        var validPassword = string.Equals(request.Password, jwt.Password, StringComparison.Ordinal);
+        var result = await authService.RegisterAsync(request, cancellationToken);
 
-        if (!validUsername || !validPassword)
+        if (!result.Succeeded || result.User is null)
+        {
+            return Conflict(new ProblemDetails
+            {
+                Title = "Username already exists",
+                Detail = "Choose a different username.",
+                Status = StatusCodes.Status409Conflict
+            });
+        }
+
+        return StatusCode(StatusCodes.Status201Created, tokenService.CreateToken(result.User));
+    }
+
+    [HttpPost("login")]
+    [ProducesResponseType<AuthResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<AuthResponse>> Login(
+        LoginRequest request,
+        CancellationToken cancellationToken)
+    {
+        var user = await authService.AuthenticateAsync(request, cancellationToken);
+        if (user is null)
         {
             return Unauthorized(new ProblemDetails
             {
@@ -32,6 +55,6 @@ public sealed class AuthController(
             });
         }
 
-        return Ok(tokenService.CreateToken(request.Username));
+        return Ok(tokenService.CreateToken(user));
     }
 }

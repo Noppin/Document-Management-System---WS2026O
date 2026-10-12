@@ -9,6 +9,7 @@ public sealed class DocumentManagementDbContext(DbContextOptions<DocumentManagem
     public DbSet<Document> Documents => Set<Document>();
     public DbSet<Collection> Collections => Set<Collection>();
     public DbSet<CollectionDocument> CollectionDocuments => Set<CollectionDocument>();
+    public DbSet<User> Users => Set<User>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -34,6 +35,18 @@ public sealed class DocumentManagementDbContext(DbContextOptions<DocumentManagem
             entity.ToTable("collections");
             entity.HasKey(collection => collection.Id);
             entity.Property(collection => collection.Name).IsRequired().HasMaxLength(200);
+        });
+
+
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.ToTable("users");
+            entity.HasKey(user => user.Id);
+            entity.Property(user => user.Username).IsRequired().HasMaxLength(50);
+            entity.Property(user => user.NormalizedUsername).IsRequired().HasMaxLength(50);
+            entity.Property(user => user.PasswordHash).IsRequired().HasMaxLength(512);
+            entity.Property(user => user.CreatedAt).IsRequired();
+            entity.HasIndex(user => user.NormalizedUsername).IsUnique();
         });
 
         modelBuilder.Entity<CollectionDocument>(entity =>

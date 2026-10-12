@@ -24,11 +24,6 @@ if (Encoding.UTF8.GetByteCount(jwtOptions.Key) < 32)
     throw new InvalidOperationException("Jwt:Key must contain at least 32 bytes.");
 }
 
-if (string.IsNullOrWhiteSpace(jwtOptions.Username) || string.IsNullOrWhiteSpace(jwtOptions.Password))
-{
-    throw new InvalidOperationException("JWT demo credentials are not configured.");
-}
-
 builder.Services.AddPersistence(connectionString);
 builder.Services.AddApplication();
 builder.Services.Configure<JwtOptions>(jwtSection);

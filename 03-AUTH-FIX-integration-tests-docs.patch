@@ -1,0 +1,1099 @@
+diff --git a/.gitattributes b/.gitattributes
+new file mode 100644
+index 0000000..da52266
+--- /dev/null
++++ b/.gitattributes
+@@ -0,0 +1,2 @@
++*.sh text eol=lf
++*.ps1 text eol=crlf
+diff --git a/README.md b/README.md
+index 7ca5349..d29fba1 100644
+--- a/README.md
++++ b/README.md
+@@ -283,4 +283,24 @@ FRONTEND_URL=http://localhost API_URL=http://localhost/api ./scripts/smoke-test.
+ 
+ ## Environment settings
+ 
+-The default environment is configured in [launchSettings.json](src/DocumentManagementSystem.Api/Properties/launchSettings.json). The application enables Swagger only when `ASPNETCORE_ENVIRONMENT` is `Development`.
+\ No newline at end of file
++The default environment is configured in [launchSettings.json](src/DocumentManagementSystem.Api/Properties/launchSettings.json). The application enables Swagger only when `ASPNETCORE_ENVIRONMENT` is `Development`.
++## JWT authentication
++
++The Sprint 2 API uses database-backed users and JWT Bearer authentication.
++
++1. Start the complete application with `docker compose up -d --build`.
++2. Open `http://localhost/register` and create an account.
++3. The registration response signs the user in immediately and stores the JWT in the frontend session.
++4. Existing users can sign in at `http://localhost/login`.
++5. Documents and collections require `Authorization: Bearer <token>`; `/health`, `/auth/register` and `/auth/login` remain public.
++
++Passwords are never stored as plain text. ASP.NET Core `PasswordHasher<User>` hashes passwords before the user is persisted in PostgreSQL. Usernames are unique case-insensitively.
++
++For Docker, override the signing key in real environments:
++
++```powershell
++$env:JWT_KEY="replace-this-with-a-long-random-secret-at-least-32-bytes"
++docker compose up -d --build
++```
++
++Run the end-to-end authentication smoke test from Git Bash/WSL with `./scripts/smoke-test.sh`.
+diff --git a/docker-compose.yml b/docker-compose.yml
+index 1e600b3..d9c2026 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -1,38 +1,42 @@
+-services:
+-  postgres:
+-    image: postgres:17-alpine
+-    environment:
+-      POSTGRES_DB: document_management
+-      POSTGRES_USER: postgres
+-      POSTGRES_PASSWORD: postgres
+-    volumes:
+-      - postgres-data:/var/lib/postgresql/data
+-    healthcheck:
+-      test: ["CMD-SHELL", "pg_isready -U postgres -d document_management"]
+-      interval: 5s
+-      timeout: 5s
+-      retries: 10
+-
+-  api:
+-    build:
+-      context: .
+-      dockerfile: src/DocumentManagementSystem.Api/Dockerfile
+-    environment:
+-      ASPNETCORE_ENVIRONMENT: Production
+-      ASPNETCORE_URLS: http://+:8080
+-      ConnectionStrings__DocumentManagementDb: Host=postgres;Port=5432;Database=document_management;Username=postgres;Password=postgres
+-    depends_on:
+-      postgres:
+-        condition: service_healthy
+-
+-  frontend:
+-    build:
+-      context: ./frontend
+-      dockerfile: Dockerfile
+-    ports:
+-      - "80:80"
+-    depends_on:
+-      - api
+-
+-volumes:
+-  postgres-data:
++services:
++  postgres:
++    image: postgres:17-alpine
++    environment:
++      POSTGRES_DB: document_management
++      POSTGRES_USER: postgres
++      POSTGRES_PASSWORD: postgres
++    volumes:
++      - postgres-data:/var/lib/postgresql/data
++    healthcheck:
++      test: ["CMD-SHELL", "pg_isready -U postgres -d document_management"]
++      interval: 5s
++      timeout: 5s
++      retries: 10
++
++  api:
++    build:
++      context: .
++      dockerfile: src/DocumentManagementSystem.Api/Dockerfile
++    environment:
++      ASPNETCORE_ENVIRONMENT: Production
++      ASPNETCORE_URLS: http://+:8080
++      ConnectionStrings__DocumentManagementDb: Host=postgres;Port=5432;Database=document_management;Username=postgres;Password=postgres
++      Jwt__Issuer: DocumentManagementSystem.Api
++      Jwt__Audience: DocumentManagementSystem.Frontend
++      Jwt__Key: ${JWT_KEY:-development-only-jwt-signing-key-change-me-use-env-in-production-2026}
++      Jwt__ExpirationMinutes: 60
++    depends_on:
++      postgres:
++        condition: service_healthy
++
++  frontend:
++    build:
++      context: ./frontend
++      dockerfile: Dockerfile
++    ports:
++      - "80:80"
++    depends_on:
++      - api
++
++volumes:
++  postgres-data:
+diff --git a/docs/openapi.yaml b/docs/openapi.yaml
+index ecfefd1..be05f34 100644
+--- a/docs/openapi.yaml
++++ b/docs/openapi.yaml
+@@ -1,205 +1,270 @@
+-openapi: 3.0.3
+-info:
+-  title: Document Management System REST API
+-  version: 1.0.0
+-  description: REST API for document uploads and collections.
+-servers:
+-  - url: http://localhost:8080
+-paths:
+-  /health:
+-    get:
+-      summary: Health check
+-      responses:
+-        '200':
+-          description: API is running
+-          content:
+-            application/json:
+-              schema:
+-                type: object
+-                required: [status]
+-                properties:
+-                  status: { type: string, example: ok }
+-  /documents:
+-    post:
+-      tags: [Documents]
+-      summary: Upload a PDF document
+-      requestBody:
+-        required: true
+-        content:
+-          multipart/form-data:
+-            schema:
+-              type: object
+-              required: [file]
+-              properties:
+-                file: { type: string, format: binary }
+-      responses:
+-        '201':
+-          description: Document uploaded
+-          content:
+-            application/json:
+-              schema: { $ref: '#/components/schemas/DocumentResponse' }
+-        '400': { description: Invalid upload }
+-    get:
+-      tags: [Documents]
+-      summary: List all documents
+-      responses:
+-        '200':
+-          description: Documents
+-          content:
+-            application/json:
+-              schema:
+-                type: array
+-                items: { $ref: '#/components/schemas/DocumentResponse' }
+-  /documents/{id}:
+-    parameters:
+-      - in: path
+-        name: id
+-        required: true
+-        schema: { type: string, format: uuid }
+-    get:
+-      tags: [Documents]
+-      summary: Get one document
+-      responses:
+-        '200':
+-          description: Document
+-          content:
+-            application/json:
+-              schema: { $ref: '#/components/schemas/DocumentResponse' }
+-        '404': { description: Document not found }
+-    delete:
+-      tags: [Documents]
+-      summary: Delete one document
+-      responses:
+-        '204': { description: Deleted }
+-        '404': { description: Document not found }
+-  /documents/{id}/content:
+-    parameters:
+-      - in: path
+-        name: id
+-        required: true
+-        schema: { type: string, format: uuid }
+-    get:
+-      tags: [Documents]
+-      summary: Download the stored PDF content
+-      responses:
+-        '200':
+-          description: PDF file
+-          content:
+-            application/pdf:
+-              schema: { type: string, format: binary }
+-        '404': { description: Document not found }
+-  /collections:
+-    post:
+-      tags: [Collections]
+-      summary: Create a collection
+-      requestBody:
+-        required: true
+-        content:
+-          application/json:
+-            schema: { $ref: '#/components/schemas/CreateCollectionRequest' }
+-      responses:
+-        '201':
+-          description: Collection created
+-          content:
+-            application/json:
+-              schema: { $ref: '#/components/schemas/CollectionResponse' }
+-        '400': { description: Collection name is required }
+-    get:
+-      tags: [Collections]
+-      summary: List collections
+-      responses:
+-        '200':
+-          description: Collections
+-          content:
+-            application/json:
+-              schema:
+-                type: array
+-                items: { $ref: '#/components/schemas/CollectionResponse' }
+-  /collections/{id}:
+-    parameters:
+-      - in: path
+-        name: id
+-        required: true
+-        schema: { type: string, format: uuid }
+-    get:
+-      tags: [Collections]
+-      summary: Get a collection and its documents
+-      responses:
+-        '200':
+-          description: Collection details
+-          content:
+-            application/json:
+-              schema: { $ref: '#/components/schemas/CollectionDetailResponse' }
+-        '404': { description: Collection not found }
+-  /collections/{id}/documents:
+-    parameters:
+-      - in: path
+-        name: id
+-        required: true
+-        schema: { type: string, format: uuid }
+-    post:
+-      tags: [Collections]
+-      summary: Add a document to a collection
+-      requestBody:
+-        required: true
+-        content:
+-          application/json:
+-            schema: { $ref: '#/components/schemas/AssignDocumentRequest' }
+-      responses:
+-        '204': { description: Document assigned }
+-        '404': { description: Document or collection not found }
+-  /collections/{id}/documents/{documentId}:
+-    parameters:
+-      - in: path
+-        name: id
+-        required: true
+-        schema: { type: string, format: uuid }
+-      - in: path
+-        name: documentId
+-        required: true
+-        schema: { type: string, format: uuid }
+-    delete:
+-      tags: [Collections]
+-      summary: Remove a document from a collection
+-      responses:
+-        '204': { description: Document removed }
+-        '404': { description: Collection or document link not found }
+-components:
+-  schemas:
+-    DocumentResponse:
+-      type: object
+-      required: [id, fileName, contentType, fileSize, createdAt]
+-      properties:
+-        id: { type: string, format: uuid }
+-        fileName: { type: string }
+-        contentType: { type: string, example: application/pdf }
+-        fileSize: { type: integer, format: int64 }
+-        createdAt: { type: string, format: date-time }
+-    CreateCollectionRequest:
+-      type: object
+-      required: [name]
+-      properties:
+-        name: { type: string }
+-    AssignDocumentRequest:
+-      type: object
+-      required: [documentId]
+-      properties:
+-        documentId: { type: string, format: uuid }
+-    CollectionResponse:
+-      type: object
+-      required: [id, name, createdAt, documentCount]
+-      properties:
+-        id: { type: string, format: uuid }
+-        name: { type: string }
+-        createdAt: { type: string, format: date-time }
+-        documentCount: { type: integer, format: int32 }
+-    CollectionDetailResponse:
+-      type: object
+-      required: [id, name, createdAt, documents]
+-      properties:
+-        id: { type: string, format: uuid }
+-        name: { type: string }
+-        createdAt: { type: string, format: date-time }
+-        documents:
+-          type: array
+-          items: { $ref: '#/components/schemas/DocumentResponse' }
++openapi: 3.0.3
++info:
++  title: Document Management System REST API
++  version: 1.0.0
++  description: REST API for document uploads, collections and JWT authentication.
++security:
++  - bearerAuth: []
++servers:
++  - url: http://localhost:8080
++paths:
++  /auth/register:
++    post:
++      security: []
++      tags: [Authentication]
++      summary: Create a user account and return a JWT
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema: { $ref: '#/components/schemas/RegisterRequest' }
++      responses:
++        '201':
++          description: Account created
++          content:
++            application/json:
++              schema: { $ref: '#/components/schemas/AuthResponse' }
++        '400': { description: Invalid username or password }
++        '409': { description: Username already exists }
++  /auth/login:
++    post:
++      security: []
++      tags: [Authentication]
++      summary: Sign in and return a JWT
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema: { $ref: '#/components/schemas/LoginRequest' }
++      responses:
++        '200':
++          description: Signed in
++          content:
++            application/json:
++              schema: { $ref: '#/components/schemas/AuthResponse' }
++        '400': { description: Missing credentials }
++        '401': { description: Invalid credentials }
++  /health:
++    get:
++      security: []
++      summary: Health check
++      responses:
++        '200':
++          description: API is running
++          content:
++            application/json:
++              schema:
++                type: object
++                required: [status]
++                properties:
++                  status: { type: string, example: ok }
++  /documents:
++    post:
++      tags: [Documents]
++      summary: Upload a PDF document
++      requestBody:
++        required: true
++        content:
++          multipart/form-data:
++            schema:
++              type: object
++              required: [file]
++              properties:
++                file: { type: string, format: binary }
++      responses:
++        '201':
++          description: Document uploaded
++          content:
++            application/json:
++              schema: { $ref: '#/components/schemas/DocumentResponse' }
++        '400': { description: Invalid upload }
++    get:
++      tags: [Documents]
++      summary: List all documents
++      responses:
++        '200':
++          description: Documents
++          content:
++            application/json:
++              schema:
++                type: array
++                items: { $ref: '#/components/schemas/DocumentResponse' }
++  /documents/{id}:
++    parameters:
++      - in: path
++        name: id
++        required: true
++        schema: { type: string, format: uuid }
++    get:
++      tags: [Documents]
++      summary: Get one document
++      responses:
++        '200':
++          description: Document
++          content:
++            application/json:
++              schema: { $ref: '#/components/schemas/DocumentResponse' }
++        '404': { description: Document not found }
++    delete:
++      tags: [Documents]
++      summary: Delete one document
++      responses:
++        '204': { description: Deleted }
++        '404': { description: Document not found }
++  /documents/{id}/content:
++    parameters:
++      - in: path
++        name: id
++        required: true
++        schema: { type: string, format: uuid }
++    get:
++      tags: [Documents]
++      summary: Download the stored PDF content
++      responses:
++        '200':
++          description: PDF file
++          content:
++            application/pdf:
++              schema: { type: string, format: binary }
++        '404': { description: Document not found }
++  /collections:
++    post:
++      tags: [Collections]
++      summary: Create a collection
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema: { $ref: '#/components/schemas/CreateCollectionRequest' }
++      responses:
++        '201':
++          description: Collection created
++          content:
++            application/json:
++              schema: { $ref: '#/components/schemas/CollectionResponse' }
++        '400': { description: Collection name is required }
++    get:
++      tags: [Collections]
++      summary: List collections
++      responses:
++        '200':
++          description: Collections
++          content:
++            application/json:
++              schema:
++                type: array
++                items: { $ref: '#/components/schemas/CollectionResponse' }
++  /collections/{id}:
++    parameters:
++      - in: path
++        name: id
++        required: true
++        schema: { type: string, format: uuid }
++    get:
++      tags: [Collections]
++      summary: Get a collection and its documents
++      responses:
++        '200':
++          description: Collection details
++          content:
++            application/json:
++              schema: { $ref: '#/components/schemas/CollectionDetailResponse' }
++        '404': { description: Collection not found }
++  /collections/{id}/documents:
++    parameters:
++      - in: path
++        name: id
++        required: true
++        schema: { type: string, format: uuid }
++    post:
++      tags: [Collections]
++      summary: Add a document to a collection
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema: { $ref: '#/components/schemas/AssignDocumentRequest' }
++      responses:
++        '204': { description: Document assigned }
++        '404': { description: Document or collection not found }
++  /collections/{id}/documents/{documentId}:
++    parameters:
++      - in: path
++        name: id
++        required: true
++        schema: { type: string, format: uuid }
++      - in: path
++        name: documentId
++        required: true
++        schema: { type: string, format: uuid }
++    delete:
++      tags: [Collections]
++      summary: Remove a document from a collection
++      responses:
++        '204': { description: Document removed }
++        '404': { description: Collection or document link not found }
++components:
++  securitySchemes:
++    bearerAuth:
++      type: http
++      scheme: bearer
++      bearerFormat: JWT
++  schemas:
++    RegisterRequest:
++      type: object
++      required: [username, password]
++      properties:
++        username: { type: string, minLength: 3, maxLength: 50 }
++        password: { type: string, format: password, minLength: 8 }
++    LoginRequest:
++      type: object
++      required: [username, password]
++      properties:
++        username: { type: string }
++        password: { type: string, format: password }
++    AuthResponse:
++      type: object
++      required: [accessToken, expiresAt, userId, username, tokenType]
++      properties:
++        accessToken: { type: string }
++        expiresAt: { type: string, format: date-time }
++        userId: { type: string, format: uuid }
++        username: { type: string }
++        tokenType: { type: string, example: Bearer }
++    DocumentResponse:
++      type: object
++      required: [id, fileName, contentType, fileSize, createdAt]
++      properties:
++        id: { type: string, format: uuid }
++        fileName: { type: string }
++        contentType: { type: string, example: application/pdf }
++        fileSize: { type: integer, format: int64 }
++        createdAt: { type: string, format: date-time }
++    CreateCollectionRequest:
++      type: object
++      required: [name]
++      properties:
++        name: { type: string }
++    AssignDocumentRequest:
++      type: object
++      required: [documentId]
++      properties:
++        documentId: { type: string, format: uuid }
++    CollectionResponse:
++      type: object
++      required: [id, name, createdAt, documentCount]
++      properties:
++        id: { type: string, format: uuid }
++        name: { type: string }
++        createdAt: { type: string, format: date-time }
++        documentCount: { type: integer, format: int32 }
++    CollectionDetailResponse:
++      type: object
++      required: [id, name, createdAt, documents]
++      properties:
++        id: { type: string, format: uuid }
++        name: { type: string }
++        createdAt: { type: string, format: date-time }
++        documents:
++          type: array
++          items: { $ref: '#/components/schemas/DocumentResponse' }
+diff --git a/frontend/src/features/auth/validation.test.ts b/frontend/src/features/auth/validation.test.ts
+new file mode 100644
+index 0000000..a5f68e8
+--- /dev/null
++++ b/frontend/src/features/auth/validation.test.ts
+@@ -0,0 +1,16 @@
++import { describe, expect, it } from 'vitest';
++import { loginSchema, registerSchema } from './validation';
++
++describe('authentication validation', () => {
++  it('accepts a strong registration', () => {
++    expect(registerSchema.safeParse({ username: 'mark_01', password: 'StrongPass1!', confirmPassword: 'StrongPass1!' }).success).toBe(true);
++  });
++
++  it('rejects mismatched registration passwords', () => {
++    expect(registerSchema.safeParse({ username: 'mark_01', password: 'StrongPass1!', confirmPassword: 'Different1!' }).success).toBe(false);
++  });
++
++  it('rejects empty login fields', () => {
++    expect(loginSchema.safeParse({ username: '', password: '' }).success).toBe(false);
++  });
++});
+diff --git a/http/paperless.http b/http/paperless.http
+index 7a81e76..8b401ea 100644
+--- a/http/paperless.http
++++ b/http/paperless.http
+@@ -1,52 +1,31 @@
+-@baseUrl = http://localhost:8080
+-
+-GET {{baseUrl}}/health
+-
+-### Upload PDF
+-# Replace the file path with an existing PDF before sending.
+-POST {{baseUrl}}/documents
+-Content-Type: multipart/form-data; boundary=boundary
+-
+---boundary
+-Content-Disposition: form-data; name="file"; filename="sample.pdf"
+-Content-Type: application/pdf
+-
+-< ./sample.pdf
+---boundary--
+-
+-### List documents
+-GET {{baseUrl}}/documents
+-
+-### Get document
+-# Replace the ID with the ID returned by the upload request.
+-GET {{baseUrl}}/documents/YOUR_DOCUMENT_ID
+-
+-### Delete document
+-# Replace the ID with the ID returned by the upload request.
+-DELETE {{baseUrl}}/documents/YOUR_DOCUMENT_ID
+-
+-### Create collection
+-POST {{baseUrl}}/collections
+-Content-Type: application/json
+-
+-{
+-  "name": "Invoices"
+-}
+-
+-### List collections
+-GET {{baseUrl}}/collections
+-
+-### Get collection
+-# Replace the ID with the ID returned by the create collection request.
+-GET {{baseUrl}}/collections/YOUR_COLLECTION_ID
+-
+-### Add document to collection
+-POST {{baseUrl}}/collections/YOUR_COLLECTION_ID/documents
+-Content-Type: application/json
+-
+-{
+-  "documentId": "YOUR_DOCUMENT_ID"
+-}
+-
+-### Remove document from collection
+-DELETE {{baseUrl}}/collections/YOUR_COLLECTION_ID/documents/YOUR_DOCUMENT_ID
++@baseUrl = http://localhost/api
++@username = demo_user
++@password = DemoUser1!
++
++### Register a user (run once; a duplicate returns 409)
++POST {{baseUrl}}/auth/register
++Content-Type: application/json
++
++{
++  "username": "{{username}}",
++  "password": "{{password}}"
++}
++
++### Login and copy accessToken into the variable below
++POST {{baseUrl}}/auth/login
++Content-Type: application/json
++
++{
++  "username": "{{username}}",
++  "password": "{{password}}"
++}
++
++@token = paste-token-here
++
++### List documents (protected)
++GET {{baseUrl}}/documents
++Authorization: Bearer {{token}}
++
++### List collections (protected)
++GET {{baseUrl}}/collections
++Authorization: Bearer {{token}}
+diff --git a/scripts/smoke-test.sh b/scripts/smoke-test.sh
+old mode 100644
+new mode 100755
+index 82c36d3..f0d7705
+--- a/scripts/smoke-test.sh
++++ b/scripts/smoke-test.sh
+@@ -1,96 +1,65 @@
+-#!/usr/bin/env bash
+-# Sprint-2 smoke test: React frontend (nginx), ASP.NET Core REST API and
+-# PostgreSQL running together in Docker Compose.
+-set -uo pipefail
+-
+-cd "$(dirname "$0")/.."
+-
+-FRONTEND_URL="${FRONTEND_URL:-http://localhost}"
+-API_URL="${API_URL:-$FRONTEND_URL/api}"
+-
+-PASS=0
+-FAIL=0
+-
+-ok() {
+-	printf '  ok    %s\n' "$1"
+-	PASS=$((PASS + 1))
+-}
+-
+-bad() {
+-	printf '  FAIL  %s\n' "$1"
+-	FAIL=$((FAIL + 1))
+-}
+-
+-http_status() {
+-	curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$1" 2>/dev/null
+-}
+-
+-expect_status() {
+-	local label="$1" url="$2" expected="$3" actual
+-	actual="$(http_status "$url")"
+-	if [ "$actual" = "$expected" ]; then
+-		ok "$label -> $actual"
+-	else
+-		bad "$label -> got $actual, want $expected"
+-	fi
+-}
+-
+-echo "Compose services"
+-running="$(docker compose ps --status running --services 2>/dev/null)"
+-for service in postgres api frontend; do
+-	if printf '%s\n' "$running" | grep -qx "$service"; then
+-		ok "$service is running"
+-	else
+-		bad "$service is not running"
+-	fi
+-done
+-
+-echo
+-echo "Frontend served by nginx"
+-expect_status "GET /" "$FRONTEND_URL/" 200
+-
+-asset="$(curl -s --max-time 10 "$FRONTEND_URL/" 2>/dev/null | grep -o '/assets/[^"]*\.js' | head -n 1)"
+-if [ -n "$asset" ]; then
+-	expect_status "GET $asset" "$FRONTEND_URL$asset" 200
+-else
+-	bad "no bundled JS asset found in index.html"
+-fi
+-
+-echo
+-echo "SPA routes survive a browser refresh"
+-expect_status "GET /documents/:id" "$FRONTEND_URL/documents/1" 200
+-expect_status "GET /collections/:id" "$FRONTEND_URL/collections/1" 200
+-expect_status "GET /upload" "$FRONTEND_URL/upload" 200
+-expect_status "GET unknown route" "$FRONTEND_URL/definitely-not-a-route" 200
+-
+-echo
+-echo "nginx proxies the REST API"
+-expect_status "GET /api/collections" "$FRONTEND_URL/api/collections" 200
+-
+-echo
+-echo "REST API (through nginx)"
+-expect_status "GET /api/health" "$API_URL/health" 200
+-expect_status "GET /api/collections" "$API_URL/collections" 200
+-expect_status "GET /api/documents" "$API_URL/documents" 200
+-
+-echo
+-echo "Container networking"
+-if docker compose exec -T frontend wget -qO- --timeout=10 http://api:8080/health 2>/dev/null | grep -q '"status"'; then
+-	ok "frontend container reaches http://api:8080/health"
+-else
+-	bad "frontend container cannot reach the API container"
+-fi
+-
+-echo
+-echo "PostgreSQL"
+-if docker compose exec -T postgres pg_isready -U postgres -d document_management >/dev/null 2>&1; then
+-	ok "PostgreSQL accepts connections"
+-else
+-	bad "PostgreSQL is not accepting connections"
+-fi
+-
+-echo
+-echo "$PASS passed, $FAIL failed"
+-if [ "$FAIL" -gt 0 ]; then
+-	exit 1
+-fi
++#!/usr/bin/env bash
++set -uo pipefail
++
++cd "$(dirname "$0")/.."
++
++FRONTEND_URL="${FRONTEND_URL:-http://localhost}"
++API_URL="${API_URL:-$FRONTEND_URL/api}"
++PASS=0
++FAIL=0
++
++ok() { printf '  ok    %s\n' "$1"; PASS=$((PASS + 1)); }
++bad() { printf '  FAIL  %s\n' "$1"; FAIL=$((FAIL + 1)); }
++status() { curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$@" 2>/dev/null; }
++expect() { local label="$1" expected="$2"; shift 2; local actual; actual="$(status "$@")"; [ "$actual" = "$expected" ] && ok "$label -> $actual" || bad "$label -> got $actual, want $expected"; }
++
++echo "Compose services"
++running="$(docker compose ps --status running --services 2>/dev/null)"
++for service in postgres api frontend; do
++  printf '%s\n' "$running" | grep -qx "$service" && ok "$service is running" || bad "$service is not running"
++done
++
++echo
++echo "Frontend and public health"
++expect "GET /" 200 "$FRONTEND_URL/"
++expect "GET /api/health" 200 "$API_URL/health"
++
++echo
++echo "JWT authentication"
++expect "documents require JWT" 401 "$API_URL/documents"
++expect "collections require JWT" 401 "$API_URL/collections"
++
++USERNAME="smoke_$(date +%s)"
++PASSWORD='SmokeTest1!'
++REGISTER_BODY="{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\"}"
++REGISTER_RESPONSE="$(curl -sS --max-time 10 -H 'Content-Type: application/json' -d "$REGISTER_BODY" "$API_URL/auth/register" 2>/dev/null || true)"
++TOKEN="$(printf '%s' "$REGISTER_RESPONSE" | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')"
++
++if [ -n "$TOKEN" ]; then
++  ok "register returns a JWT"
++else
++  bad "register did not return a JWT: $REGISTER_RESPONSE"
++fi
++
++LOGIN_RESPONSE="$(curl -sS --max-time 10 -H 'Content-Type: application/json' -d "$REGISTER_BODY" "$API_URL/auth/login" 2>/dev/null || true)"
++LOGIN_TOKEN="$(printf '%s' "$LOGIN_RESPONSE" | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')"
++if [ -n "$LOGIN_TOKEN" ]; then
++  ok "login returns a JWT"
++else
++  bad "login did not return a JWT: $LOGIN_RESPONSE"
++fi
++
++if [ -n "$LOGIN_TOKEN" ]; then
++  expect "authenticated documents" 200 -H "Authorization: Bearer $LOGIN_TOKEN" "$API_URL/documents"
++  expect "authenticated collections" 200 -H "Authorization: Bearer $LOGIN_TOKEN" "$API_URL/collections"
++fi
++
++expect "duplicate username is rejected" 409 -H 'Content-Type: application/json' -d "$REGISTER_BODY" "$API_URL/auth/register"
++
++echo
++echo "PostgreSQL"
++if docker compose exec -T postgres pg_isready -U postgres -d document_management >/dev/null 2>&1; then ok "PostgreSQL accepts connections"; else bad "PostgreSQL is not accepting connections"; fi
++
++echo
++echo "$PASS passed, $FAIL failed"
++[ "$FAIL" -eq 0 ]
+diff --git a/scripts/upload-document.ps1 b/scripts/upload-document.ps1
+index d906aee..5d03cc4 100644
+--- a/scripts/upload-document.ps1
++++ b/scripts/upload-document.ps1
+@@ -1,17 +1,33 @@
+-<#
+-.SYNOPSIS
+-    Uploads a PDF document to the Document Management System REST API.
+-.EXAMPLE
+-    ./scripts/upload-document.ps1 -File http/sample.pdf -BaseUrl http://localhost/api
+-#>
+-param(
+-    [string]$File = "http/sample.pdf",
+-    [string]$BaseUrl = "http://localhost/api"
+-)
+-
+-if (-not (Test-Path -Path $File)) {
+-    Write-Error "File not found: $File"
+-    exit 1
+-}
+-
+-curl.exe --fail-with-body --request POST --form "file=@$File;type=application/pdf" "$BaseUrl/documents"
++param(
++    [string]$File = "http/sample.pdf",
++    [string]$BaseUrl = "http://localhost/api",
++    [string]$Token = $env:DMS_TOKEN,
++    [string]$Username = $env:DMS_USERNAME,
++    [string]$Password = $env:DMS_PASSWORD
++)
++
++$ErrorActionPreference = "Stop"
++
++if (-not (Test-Path $File)) {
++    throw "File not found: $File"
++}
++
++if ([string]::IsNullOrWhiteSpace($Token)) {
++    if ([string]::IsNullOrWhiteSpace($Username) -or [string]::IsNullOrWhiteSpace($Password)) {
++        throw "Set DMS_TOKEN, or set DMS_USERNAME and DMS_PASSWORD for an existing account."
++    }
++
++    $loginBody = @{ username = $Username; password = $Password } | ConvertTo-Json
++    $login = Invoke-RestMethod -Method Post -Uri "$BaseUrl/auth/login" -ContentType "application/json" -Body $loginBody
++    $Token = $login.accessToken
++}
++
++if ([string]::IsNullOrWhiteSpace($Token)) {
++    throw "Could not obtain a JWT."
++}
++
++curl.exe --fail-with-body `
++  --request POST `
++  --header "Authorization: Bearer $Token" `
++  --form "file=@$File;type=application/pdf" `
++  "$BaseUrl/documents"
+diff --git a/scripts/upload-document.sh b/scripts/upload-document.sh
+old mode 100644
+new mode 100755
+index b470f72..d3a4bb6
+--- a/scripts/upload-document.sh
++++ b/scripts/upload-document.sh
+@@ -1,20 +1,36 @@
+-#!/usr/bin/env bash
+-set -euo pipefail
+-
+-# Upload a PDF document to the Document Management System REST API.
+-# Usage:   ./scripts/upload-document.sh [path-to-pdf] [base-url]
+-# Example: ./scripts/upload-document.sh http/sample.pdf http://localhost/api
+-
+-FILE="${1:-http/sample.pdf}"
+-BASE_URL="${2:-http://localhost/api}"
+-
+-if [[ ! -f "$FILE" ]]; then
+-  echo "File not found: $FILE" >&2
+-  exit 1
+-fi
+-
+-curl --fail-with-body \
+-  --request POST \
+-  --form "file=@${FILE};type=application/pdf" \
+-  "${BASE_URL}/documents"
+-echo
++#!/usr/bin/env bash
++set -euo pipefail
++
++FILE="${1:-http/sample.pdf}"
++BASE_URL="${2:-http://localhost/api}"
++TOKEN="${DMS_TOKEN:-}"
++
++if [[ ! -f "$FILE" ]]; then
++  echo "File not found: $FILE" >&2
++  exit 1
++fi
++
++if [[ -z "$TOKEN" ]]; then
++  if [[ -z "${DMS_USERNAME:-}" || -z "${DMS_PASSWORD:-}" ]]; then
++    echo "Set DMS_TOKEN, or set DMS_USERNAME and DMS_PASSWORD for an existing account." >&2
++    exit 2
++  fi
++
++  LOGIN_RESPONSE="$(curl -sS --fail-with-body \
++    -H 'Content-Type: application/json' \
++    -d "{\"username\":\"${DMS_USERNAME}\",\"password\":\"${DMS_PASSWORD}\"}" \
++    "$BASE_URL/auth/login")"
++  TOKEN="$(printf '%s' "$LOGIN_RESPONSE" | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')"
++fi
++
++if [[ -z "$TOKEN" ]]; then
++  echo "Could not obtain a JWT." >&2
++  exit 3
++fi
++
++curl --fail-with-body \
++  --request POST \
++  --header "Authorization: Bearer $TOKEN" \
++  --form "file=@${FILE};type=application/pdf" \
++  "$BASE_URL/documents"
++echo
+diff --git a/src/DocumentManagementSystem.Api/Program.cs b/src/DocumentManagementSystem.Api/Program.cs
+index fb1b29e..ca25a92 100644
+--- a/src/DocumentManagementSystem.Api/Program.cs
++++ b/src/DocumentManagementSystem.Api/Program.cs
+@@ -5,6 +5,7 @@ using DocumentManagementSystem.Application;
+ using DocumentManagementSystem.Persistence;
+ using Microsoft.AspNetCore.Authentication.JwtBearer;
+ using Microsoft.IdentityModel.Tokens;
++using Microsoft.OpenApi.Models;
+ 
+ var builder = WebApplication.CreateBuilder(args);
+ 
+@@ -46,7 +47,29 @@ builder.Services
+     });
+ builder.Services.AddAuthorization();
+ builder.Services.AddEndpointsApiExplorer();
+-builder.Services.AddSwaggerGen();
++builder.Services.AddSwaggerGen(options =>
++{
++    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
++    {
++        Name = "Authorization",
++        Type = SecuritySchemeType.Http,
++        Scheme = "bearer",
++        BearerFormat = "JWT",
++        In = ParameterLocation.Header,
++        Description = "Enter the JWT access token returned by /auth/login or /auth/register."
++    });
++    options.AddSecurityRequirement(new OpenApiSecurityRequirement
++    {
++        [new OpenApiSecurityScheme
++        {
++            Reference = new OpenApiReference
++            {
++                Type = ReferenceType.SecurityScheme,
++                Id = "Bearer"
++            }
++        }] = Array.Empty<string>()
++    });
++});
+ builder.Services.AddControllers();
+ 
+ var app = builder.Build();
+diff --git a/tests/DocumentManagementSystem.Persistence.Tests/AuthServiceTests.cs b/tests/DocumentManagementSystem.Persistence.Tests/AuthServiceTests.cs
+new file mode 100644
+index 0000000..93a36ef
+--- /dev/null
++++ b/tests/DocumentManagementSystem.Persistence.Tests/AuthServiceTests.cs
+@@ -0,0 +1,50 @@
++using DocumentManagementSystem.Application.Dtos;
++using DocumentManagementSystem.Application.Services;
++using DocumentManagementSystem.Application.Validation;
++using DocumentManagementSystem.Domain.Entities;
++using Microsoft.AspNetCore.Identity;
++
++namespace DocumentManagementSystem.Persistence.Tests;
++
++public sealed class AuthServiceTests
++{
++    private readonly InMemoryTestDatabase database = new();
++
++    [Fact]
++    public async Task RegisterThenLogin_WithCorrectPassword_Succeeds()
++    {
++        var service = CreateService();
++        var registration = await service.RegisterAsync(new RegisterRequest("mark", "StrongPass1!"));
++
++        Assert.True(registration.Succeeded);
++        var user = await service.AuthenticateAsync(new LoginRequest("mark", "StrongPass1!"));
++        Assert.NotNull(user);
++        Assert.Equal("mark", user!.Username);
++    }
++
++    [Fact]
++    public async Task Register_DuplicateUsernameIgnoringCase_IsRejected()
++    {
++        var service = CreateService();
++        await service.RegisterAsync(new RegisterRequest("Mark", "StrongPass1!"));
++
++        var second = await service.RegisterAsync(new RegisterRequest("mark", "StrongPass1!"));
++        Assert.False(second.Succeeded);
++        Assert.Equal("username_taken", second.ErrorCode);
++    }
++
++    [Fact]
++    public async Task Login_WithWrongPassword_ReturnsNull()
++    {
++        var service = CreateService();
++        await service.RegisterAsync(new RegisterRequest("mark", "StrongPass1!"));
++
++        Assert.Null(await service.AuthenticateAsync(new LoginRequest("mark", "WrongPass1!")));
++    }
++
++    private AuthService CreateService() => new(
++        new UserRepository(database.CreateContext()),
++        new PasswordHasher<User>(),
++        new RegisterRequestValidator(),
++        new LoginRequestValidator());
++}

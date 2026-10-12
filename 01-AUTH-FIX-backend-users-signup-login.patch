@@ -1,0 +1,1221 @@
+diff --git a/src/DocumentManagementSystem.Api/Auth/AuthContracts.cs b/src/DocumentManagementSystem.Api/Auth/AuthContracts.cs
+index c09ab96..735f1f2 100644
+--- a/src/DocumentManagementSystem.Api/Auth/AuthContracts.cs
++++ b/src/DocumentManagementSystem.Api/Auth/AuthContracts.cs
+@@ -1,13 +1,8 @@
+-using System.ComponentModel.DataAnnotations;
+-
+-namespace DocumentManagementSystem.Api.Auth;
+-
+-public sealed record LoginRequest(
+-    [property: Required] string Username,
+-    [property: Required] string Password);
+-
+-public sealed record LoginResponse(
+-    string AccessToken,
+-    DateTimeOffset ExpiresAt,
+-    string Username,
+-    string TokenType = "Bearer");
++namespace DocumentManagementSystem.Api.Auth;
++
++public sealed record AuthResponse(
++    string AccessToken,
++    DateTimeOffset ExpiresAt,
++    Guid UserId,
++    string Username,
++    string TokenType = "Bearer");
+diff --git a/src/DocumentManagementSystem.Api/Auth/JwtOptions.cs b/src/DocumentManagementSystem.Api/Auth/JwtOptions.cs
+index a7c8539..906cb16 100644
+--- a/src/DocumentManagementSystem.Api/Auth/JwtOptions.cs
++++ b/src/DocumentManagementSystem.Api/Auth/JwtOptions.cs
+@@ -1,13 +1,11 @@
+-namespace DocumentManagementSystem.Api.Auth;
+-
+-public sealed class JwtOptions
+-{
+-    public const string SectionName = "Jwt";
+-
+-    public string Issuer { get; init; } = "DocumentManagementSystem.Api";
+-    public string Audience { get; init; } = "DocumentManagementSystem.Frontend";
+-    public string Key { get; init; } = string.Empty;
+-    public string Username { get; init; } = "admin";
+-    public string Password { get; init; } = string.Empty;
+-    public int ExpirationMinutes { get; init; } = 60;
+-}
++namespace DocumentManagementSystem.Api.Auth;
++
++public sealed class JwtOptions
++{
++    public const string SectionName = "Jwt";
++
++    public string Issuer { get; init; } = "DocumentManagementSystem.Api";
++    public string Audience { get; init; } = "DocumentManagementSystem.Frontend";
++    public string Key { get; init; } = string.Empty;
++    public int ExpirationMinutes { get; init; } = 60;
++}
+diff --git a/src/DocumentManagementSystem.Api/Auth/JwtTokenService.cs b/src/DocumentManagementSystem.Api/Auth/JwtTokenService.cs
+index a7f9b54..5a4442a 100644
+--- a/src/DocumentManagementSystem.Api/Auth/JwtTokenService.cs
++++ b/src/DocumentManagementSystem.Api/Auth/JwtTokenService.cs
+@@ -1,37 +1,42 @@
+-using System.IdentityModel.Tokens.Jwt;
+-using System.Security.Claims;
+-using System.Text;
+-using Microsoft.Extensions.Options;
+-using Microsoft.IdentityModel.Tokens;
+-
+-namespace DocumentManagementSystem.Api.Auth;
+-
+-public sealed class JwtTokenService(IOptions<JwtOptions> options)
+-{
+-    private readonly JwtOptions jwt = options.Value;
+-
+-    public LoginResponse CreateToken(string username)
+-    {
+-        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(jwt.ExpirationMinutes);
+-        var claims = new[]
+-        {
+-            new Claim(JwtRegisteredClaimNames.Sub, username),
+-            new Claim(ClaimTypes.Name, username),
+-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+-        };
+-
+-        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key));
+-        var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+-        var token = new JwtSecurityToken(
+-            issuer: jwt.Issuer,
+-            audience: jwt.Audience,
+-            claims: claims,
+-            expires: expiresAt.UtcDateTime,
+-            signingCredentials: credentials);
+-
+-        return new LoginResponse(
+-            new JwtSecurityTokenHandler().WriteToken(token),
+-            expiresAt,
+-            username);
+-    }
+-}
++using System.IdentityModel.Tokens.Jwt;
++using System.Security.Claims;
++using System.Text;
++using DocumentManagementSystem.Application.Dtos;
++using Microsoft.Extensions.Options;
++using Microsoft.IdentityModel.Tokens;
++
++namespace DocumentManagementSystem.Api.Auth;
++
++public sealed class JwtTokenService(IOptions<JwtOptions> options)
++{
++    private readonly JwtOptions jwt = options.Value;
++
++    public AuthResponse CreateToken(AuthenticatedUser user)
++    {
++        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(jwt.ExpirationMinutes);
++        var claims = new[]
++        {
++            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
++            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
++            new Claim(ClaimTypes.Name, user.Username),
++            new Claim(JwtRegisteredClaimNames.UniqueName, user.Username),
++            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
++        };
++
++        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key));
++        var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
++        var token = new JwtSecurityToken(
++            issuer: jwt.Issuer,
++            audience: jwt.Audience,
++            claims: claims,
++            notBefore: DateTime.UtcNow,
++            expires: expiresAt.UtcDateTime,
++            signingCredentials: credentials);
++
++        return new AuthResponse(
++            new JwtSecurityTokenHandler().WriteToken(token),
++            expiresAt,
++            user.Id,
++            user.Username);
++    }
++}
+diff --git a/src/DocumentManagementSystem.Api/Controllers/AuthController.cs b/src/DocumentManagementSystem.Api/Controllers/AuthController.cs
+index a7e5ead..0af9f79 100644
+--- a/src/DocumentManagementSystem.Api/Controllers/AuthController.cs
++++ b/src/DocumentManagementSystem.Api/Controllers/AuthController.cs
+@@ -1,37 +1,60 @@
+-using DocumentManagementSystem.Api.Auth;
+-using Microsoft.AspNetCore.Authorization;
+-using Microsoft.AspNetCore.Mvc;
+-using Microsoft.Extensions.Options;
+-
+-namespace DocumentManagementSystem.Api.Controllers;
+-
+-[ApiController]
+-[Route("auth")]
+-public sealed class AuthController(
+-    JwtTokenService tokenService,
+-    IOptions<JwtOptions> options) : ControllerBase
+-{
+-    private readonly JwtOptions jwt = options.Value;
+-
+-    [AllowAnonymous]
+-    [HttpPost("login")]
+-    [ProducesResponseType<LoginResponse>(StatusCodes.Status200OK)]
+-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+-    public ActionResult<LoginResponse> Login(LoginRequest request)
+-    {
+-        var validUsername = string.Equals(request.Username, jwt.Username, StringComparison.Ordinal);
+-        var validPassword = string.Equals(request.Password, jwt.Password, StringComparison.Ordinal);
+-
+-        if (!validUsername || !validPassword)
+-        {
+-            return Unauthorized(new ProblemDetails
+-            {
+-                Title = "Invalid credentials",
+-                Detail = "The supplied username or password is incorrect.",
+-                Status = StatusCodes.Status401Unauthorized
+-            });
+-        }
+-
+-        return Ok(tokenService.CreateToken(request.Username));
+-    }
+-}
++using DocumentManagementSystem.Api.Auth;
++using DocumentManagementSystem.Application.Dtos;
++using DocumentManagementSystem.Application.Services;
++using Microsoft.AspNetCore.Authorization;
++using Microsoft.AspNetCore.Mvc;
++
++namespace DocumentManagementSystem.Api.Controllers;
++
++[ApiController]
++[AllowAnonymous]
++[Route("auth")]
++public sealed class AuthController(
++    IAuthService authService,
++    JwtTokenService tokenService) : ControllerBase
++{
++    [HttpPost("register")]
++    [ProducesResponseType<AuthResponse>(StatusCodes.Status201Created)]
++    [ProducesResponseType(StatusCodes.Status400BadRequest)]
++    [ProducesResponseType(StatusCodes.Status409Conflict)]
++    public async Task<ActionResult<AuthResponse>> Register(
++        RegisterRequest request,
++        CancellationToken cancellationToken)
++    {
++        var result = await authService.RegisterAsync(request, cancellationToken);
++
++        if (!result.Succeeded || result.User is null)
++        {
++            return Conflict(new ProblemDetails
++            {
++                Title = "Username already exists",
++                Detail = "Choose a different username.",
++                Status = StatusCodes.Status409Conflict
++            });
++        }
++
++        return StatusCode(StatusCodes.Status201Created, tokenService.CreateToken(result.User));
++    }
++
++    [HttpPost("login")]
++    [ProducesResponseType<AuthResponse>(StatusCodes.Status200OK)]
++    [ProducesResponseType(StatusCodes.Status400BadRequest)]
++    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
++    public async Task<ActionResult<AuthResponse>> Login(
++        LoginRequest request,
++        CancellationToken cancellationToken)
++    {
++        var user = await authService.AuthenticateAsync(request, cancellationToken);
++        if (user is null)
++        {
++            return Unauthorized(new ProblemDetails
++            {
++                Title = "Invalid credentials",
++                Detail = "The supplied username or password is incorrect.",
++                Status = StatusCodes.Status401Unauthorized
++            });
++        }
++
++        return Ok(tokenService.CreateToken(user));
++    }
++}
+diff --git a/src/DocumentManagementSystem.Api/Program.cs b/src/DocumentManagementSystem.Api/Program.cs
+index 59c59ab..fb1b29e 100644
+--- a/src/DocumentManagementSystem.Api/Program.cs
++++ b/src/DocumentManagementSystem.Api/Program.cs
+@@ -1,72 +1,67 @@
+-using System.Text;
+-using DocumentManagementSystem.Api.Auth;
+-using DocumentManagementSystem.Api.ExceptionHandling;
+-using DocumentManagementSystem.Application;
+-using DocumentManagementSystem.Persistence;
+-using Microsoft.AspNetCore.Authentication.JwtBearer;
+-using Microsoft.IdentityModel.Tokens;
+-
+-var builder = WebApplication.CreateBuilder(args);
+-
+-builder.Services.AddProblemDetails();
+-builder.Services.AddExceptionHandler<ArgumentExceptionHandler>();
+-builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
+-
+-var connectionString = builder.Configuration.GetConnectionString("DocumentManagementDb")
+-    ?? throw new InvalidOperationException("Connection string 'DocumentManagementDb' is not configured.");
+-
+-var jwtSection = builder.Configuration.GetRequiredSection(JwtOptions.SectionName);
+-var jwtOptions = jwtSection.Get<JwtOptions>()
+-    ?? throw new InvalidOperationException("JWT configuration is missing.");
+-
+-if (Encoding.UTF8.GetByteCount(jwtOptions.Key) < 32)
+-{
+-    throw new InvalidOperationException("Jwt:Key must contain at least 32 bytes.");
+-}
+-
+-if (string.IsNullOrWhiteSpace(jwtOptions.Username) || string.IsNullOrWhiteSpace(jwtOptions.Password))
+-{
+-    throw new InvalidOperationException("JWT demo credentials are not configured.");
+-}
+-
+-builder.Services.AddPersistence(connectionString);
+-builder.Services.AddApplication();
+-builder.Services.Configure<JwtOptions>(jwtSection);
+-builder.Services.AddSingleton<JwtTokenService>();
+-builder.Services
+-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+-    .AddJwtBearer(options =>
+-    {
+-        options.TokenValidationParameters = new TokenValidationParameters
+-        {
+-            ValidateIssuer = true,
+-            ValidIssuer = jwtOptions.Issuer,
+-            ValidateAudience = true,
+-            ValidAudience = jwtOptions.Audience,
+-            ValidateIssuerSigningKey = true,
+-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key)),
+-            ValidateLifetime = true,
+-            ClockSkew = TimeSpan.FromSeconds(30)
+-        };
+-    });
+-builder.Services.AddAuthorization();
+-builder.Services.AddEndpointsApiExplorer();
+-builder.Services.AddSwaggerGen();
+-builder.Services.AddControllers();
+-
+-var app = builder.Build();
+-
+-app.UseExceptionHandler();
+-
+-app.Services.ApplyMigrations();
+-
+-app.UseSwagger();
+-app.UseSwaggerUI();
+-
+-app.UseAuthentication();
+-app.UseAuthorization();
+-
+-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+-
+-app.MapControllers();
+-app.Run();
++using System.Text;
++using DocumentManagementSystem.Api.Auth;
++using DocumentManagementSystem.Api.ExceptionHandling;
++using DocumentManagementSystem.Application;
++using DocumentManagementSystem.Persistence;
++using Microsoft.AspNetCore.Authentication.JwtBearer;
++using Microsoft.IdentityModel.Tokens;
++
++var builder = WebApplication.CreateBuilder(args);
++
++builder.Services.AddProblemDetails();
++builder.Services.AddExceptionHandler<ArgumentExceptionHandler>();
++builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
++
++var connectionString = builder.Configuration.GetConnectionString("DocumentManagementDb")
++    ?? throw new InvalidOperationException("Connection string 'DocumentManagementDb' is not configured.");
++
++var jwtSection = builder.Configuration.GetRequiredSection(JwtOptions.SectionName);
++var jwtOptions = jwtSection.Get<JwtOptions>()
++    ?? throw new InvalidOperationException("JWT configuration is missing.");
++
++if (Encoding.UTF8.GetByteCount(jwtOptions.Key) < 32)
++{
++    throw new InvalidOperationException("Jwt:Key must contain at least 32 bytes.");
++}
++
++builder.Services.AddPersistence(connectionString);
++builder.Services.AddApplication();
++builder.Services.Configure<JwtOptions>(jwtSection);
++builder.Services.AddSingleton<JwtTokenService>();
++builder.Services
++    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
++    .AddJwtBearer(options =>
++    {
++        options.TokenValidationParameters = new TokenValidationParameters
++        {
++            ValidateIssuer = true,
++            ValidIssuer = jwtOptions.Issuer,
++            ValidateAudience = true,
++            ValidAudience = jwtOptions.Audience,
++            ValidateIssuerSigningKey = true,
++            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key)),
++            ValidateLifetime = true,
++            ClockSkew = TimeSpan.FromSeconds(30)
++        };
++    });
++builder.Services.AddAuthorization();
++builder.Services.AddEndpointsApiExplorer();
++builder.Services.AddSwaggerGen();
++builder.Services.AddControllers();
++
++var app = builder.Build();
++
++app.UseExceptionHandler();
++
++app.Services.ApplyMigrations();
++
++app.UseSwagger();
++app.UseSwaggerUI();
++
++app.UseAuthentication();
++app.UseAuthorization();
++
++app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
++
++app.MapControllers();
++app.Run();
+diff --git a/src/DocumentManagementSystem.Api/appsettings.json b/src/DocumentManagementSystem.Api/appsettings.json
+index ef0e0cb..1e68905 100644
+--- a/src/DocumentManagementSystem.Api/appsettings.json
++++ b/src/DocumentManagementSystem.Api/appsettings.json
+@@ -1,13 +1,11 @@
+-{
+-  "ConnectionStrings": {
+-    "DocumentManagementDb": "Host=localhost;Port=5432;Database=document_management;Username=postgres;Password=postgres"
+-  },
+-  "Jwt": {
+-    "Issuer": "DocumentManagementSystem.Api",
+-    "Audience": "DocumentManagementSystem.Frontend",
+-    "Key": "development-only-jwt-signing-key-change-me-2026",
+-    "Username": "admin",
+-    "Password": "Dms123!",
+-    "ExpirationMinutes": 60
+-  }
+-}
++{
++  "ConnectionStrings": {
++    "DocumentManagementDb": "Host=localhost;Port=5432;Database=document_management;Username=postgres;Password=postgres"
++  },
++  "Jwt": {
++    "Issuer": "DocumentManagementSystem.Api",
++    "Audience": "DocumentManagementSystem.Frontend",
++    "Key": "development-only-jwt-signing-key-change-me-use-env-in-production-2026",
++    "ExpirationMinutes": 60
++  }
++}
+diff --git a/src/DocumentManagementSystem.Application/DependencyInjection.cs b/src/DocumentManagementSystem.Application/DependencyInjection.cs
+index 140c5ac..fcc90e8 100644
+--- a/src/DocumentManagementSystem.Application/DependencyInjection.cs
++++ b/src/DocumentManagementSystem.Application/DependencyInjection.cs
+@@ -1,20 +1,26 @@
+-using DocumentManagementSystem.Application.Dtos;
+-using DocumentManagementSystem.Application.Mapping;
+-using DocumentManagementSystem.Application.Services;
+-using DocumentManagementSystem.Application.Validation;
+-using FluentValidation;
+-using Microsoft.Extensions.DependencyInjection;
+-
+-namespace DocumentManagementSystem.Application;
+-
+-public static class DependencyInjection
+-{
+-    public static IServiceCollection AddApplication(this IServiceCollection services)
+-    {
+-        services.AddScoped<IDocumentService, DocumentService>();
+-        services.AddScoped<ICollectionService, CollectionService>();
+-        services.AddAutoMapper(configuration => configuration.AddProfile<MappingProfile>());
+-        services.AddScoped<IValidator<UploadDocumentRequest>, UploadDocumentRequestValidator>();
+-        return services;
+-    }
+-}
++using DocumentManagementSystem.Application.Dtos;
++using DocumentManagementSystem.Application.Mapping;
++using DocumentManagementSystem.Application.Services;
++using DocumentManagementSystem.Application.Validation;
++using DocumentManagementSystem.Domain.Entities;
++using FluentValidation;
++using Microsoft.AspNetCore.Identity;
++using Microsoft.Extensions.DependencyInjection;
++
++namespace DocumentManagementSystem.Application;
++
++public static class DependencyInjection
++{
++    public static IServiceCollection AddApplication(this IServiceCollection services)
++    {
++        services.AddScoped<IDocumentService, DocumentService>();
++        services.AddScoped<ICollectionService, CollectionService>();
++        services.AddScoped<IAuthService, AuthService>();
++        services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
++        services.AddAutoMapper(configuration => configuration.AddProfile<MappingProfile>());
++        services.AddScoped<IValidator<UploadDocumentRequest>, UploadDocumentRequestValidator>();
++        services.AddScoped<IValidator<RegisterRequest>, RegisterRequestValidator>();
++        services.AddScoped<IValidator<LoginRequest>, LoginRequestValidator>();
++        return services;
++    }
++}
+diff --git a/src/DocumentManagementSystem.Application/Dtos/AuthContracts.cs b/src/DocumentManagementSystem.Application/Dtos/AuthContracts.cs
+new file mode 100644
+index 0000000..f1adf05
+--- /dev/null
++++ b/src/DocumentManagementSystem.Application/Dtos/AuthContracts.cs
+@@ -0,0 +1,6 @@
++namespace DocumentManagementSystem.Application.Dtos;
++
++public sealed record RegisterRequest(string Username, string Password);
++public sealed record LoginRequest(string Username, string Password);
++public sealed record AuthenticatedUser(Guid Id, string Username);
++public sealed record RegistrationResult(bool Succeeded, AuthenticatedUser? User, string? ErrorCode = null);
+diff --git a/src/DocumentManagementSystem.Application/Services/AuthService.cs b/src/DocumentManagementSystem.Application/Services/AuthService.cs
+new file mode 100644
+index 0000000..2f83d07
+--- /dev/null
++++ b/src/DocumentManagementSystem.Application/Services/AuthService.cs
+@@ -0,0 +1,63 @@
++using DocumentManagementSystem.Application.Dtos;
++using DocumentManagementSystem.Domain.Entities;
++using DocumentManagementSystem.Persistence;
++using FluentValidation;
++using Microsoft.AspNetCore.Identity;
++
++namespace DocumentManagementSystem.Application.Services;
++
++public sealed class AuthService(
++    IUserRepository users,
++    IPasswordHasher<User> passwordHasher,
++    IValidator<RegisterRequest> registerValidator,
++    IValidator<LoginRequest> loginValidator) : IAuthService
++{
++    public async Task<RegistrationResult> RegisterAsync(
++        RegisterRequest request,
++        CancellationToken cancellationToken = default)
++    {
++        await registerValidator.ValidateAndThrowAsync(request, cancellationToken);
++
++        var username = request.Username.Trim();
++        var normalizedUsername = Normalize(username);
++
++        if (users.ExistsByNormalizedUsername(normalizedUsername))
++        {
++            return new RegistrationResult(false, null, "username_taken");
++        }
++
++        var user = new User
++        {
++            Username = username,
++            NormalizedUsername = normalizedUsername
++        };
++
++        user.PasswordHash = passwordHasher.HashPassword(user, request.Password);
++        users.Add(user);
++
++        return new RegistrationResult(true, new AuthenticatedUser(user.Id, user.Username));
++    }
++
++    public async Task<AuthenticatedUser?> AuthenticateAsync(
++        LoginRequest request,
++        CancellationToken cancellationToken = default)
++    {
++        await loginValidator.ValidateAndThrowAsync(request, cancellationToken);
++
++        var user = users.GetByNormalizedUsername(Normalize(request.Username));
++        if (user is null)
++        {
++            return null;
++        }
++
++        var result = passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
++        if (result == PasswordVerificationResult.Failed)
++        {
++            return null;
++        }
++
++        return new AuthenticatedUser(user.Id, user.Username);
++    }
++
++    private static string Normalize(string username) => username.Trim().ToUpperInvariant();
++}
+diff --git a/src/DocumentManagementSystem.Application/Services/IAuthService.cs b/src/DocumentManagementSystem.Application/Services/IAuthService.cs
+new file mode 100644
+index 0000000..000c50d
+--- /dev/null
++++ b/src/DocumentManagementSystem.Application/Services/IAuthService.cs
+@@ -0,0 +1,9 @@
++using DocumentManagementSystem.Application.Dtos;
++
++namespace DocumentManagementSystem.Application.Services;
++
++public interface IAuthService
++{
++    Task<RegistrationResult> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default);
++    Task<AuthenticatedUser?> AuthenticateAsync(LoginRequest request, CancellationToken cancellationToken = default);
++}
+diff --git a/src/DocumentManagementSystem.Application/Validation/LoginRequestValidator.cs b/src/DocumentManagementSystem.Application/Validation/LoginRequestValidator.cs
+new file mode 100644
+index 0000000..31f53ed
+--- /dev/null
++++ b/src/DocumentManagementSystem.Application/Validation/LoginRequestValidator.cs
+@@ -0,0 +1,13 @@
++using DocumentManagementSystem.Application.Dtos;
++using FluentValidation;
++
++namespace DocumentManagementSystem.Application.Validation;
++
++public sealed class LoginRequestValidator : AbstractValidator<LoginRequest>
++{
++    public LoginRequestValidator()
++    {
++        RuleFor(request => request.Username).NotEmpty();
++        RuleFor(request => request.Password).NotEmpty();
++    }
++}
+diff --git a/src/DocumentManagementSystem.Application/Validation/RegisterRequestValidator.cs b/src/DocumentManagementSystem.Application/Validation/RegisterRequestValidator.cs
+new file mode 100644
+index 0000000..eaf512c
+--- /dev/null
++++ b/src/DocumentManagementSystem.Application/Validation/RegisterRequestValidator.cs
+@@ -0,0 +1,25 @@
++using DocumentManagementSystem.Application.Dtos;
++using FluentValidation;
++
++namespace DocumentManagementSystem.Application.Validation;
++
++public sealed class RegisterRequestValidator : AbstractValidator<RegisterRequest>
++{
++    public RegisterRequestValidator()
++    {
++        RuleFor(request => request.Username)
++            .NotEmpty()
++            .MinimumLength(3)
++            .MaximumLength(50)
++            .Matches("^[A-Za-z0-9_-]+$")
++            .WithMessage("Username may only contain letters, numbers, underscores and hyphens.");
++
++        RuleFor(request => request.Password)
++            .NotEmpty()
++            .MinimumLength(8)
++            .Matches("[A-Z]").WithMessage("Password must contain an uppercase letter.")
++            .Matches("[a-z]").WithMessage("Password must contain a lowercase letter.")
++            .Matches("[0-9]").WithMessage("Password must contain a number.")
++            .Matches("[^A-Za-z0-9]").WithMessage("Password must contain a special character.");
++    }
++}
+diff --git a/src/DocumentManagementSystem.Domain/Entities/User.cs b/src/DocumentManagementSystem.Domain/Entities/User.cs
+new file mode 100644
+index 0000000..3b98338
+--- /dev/null
++++ b/src/DocumentManagementSystem.Domain/Entities/User.cs
+@@ -0,0 +1,10 @@
++namespace DocumentManagementSystem.Domain.Entities;
++
++public sealed class User
++{
++    public Guid Id { get; set; } = Guid.NewGuid();
++    public string Username { get; set; } = string.Empty;
++    public string NormalizedUsername { get; set; } = string.Empty;
++    public string PasswordHash { get; set; } = string.Empty;
++    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
++}
+diff --git a/src/DocumentManagementSystem.Persistence/DependencyInjection.cs b/src/DocumentManagementSystem.Persistence/DependencyInjection.cs
+index 5edc227..d0b628c 100644
+--- a/src/DocumentManagementSystem.Persistence/DependencyInjection.cs
++++ b/src/DocumentManagementSystem.Persistence/DependencyInjection.cs
+@@ -1,18 +1,19 @@
+-using Microsoft.Extensions.DependencyInjection;
+-using Microsoft.EntityFrameworkCore;
+-
+-namespace DocumentManagementSystem.Persistence;
+-
+-public static class DependencyInjection
+-{
+-    public static IServiceCollection AddPersistence(
+-        this IServiceCollection services,
+-        string connectionString)
+-    {
+-        services.AddDbContext<DocumentManagementDbContext>(options =>
+-            options.UseNpgsql(connectionString));
+-        services.AddScoped<IDocumentRepository, DocumentRepository>();
+-        services.AddScoped<ICollectionRepository, CollectionRepository>();
+-        return services;
+-    }
+-}
++using Microsoft.Extensions.DependencyInjection;
++using Microsoft.EntityFrameworkCore;
++
++namespace DocumentManagementSystem.Persistence;
++
++public static class DependencyInjection
++{
++    public static IServiceCollection AddPersistence(
++        this IServiceCollection services,
++        string connectionString)
++    {
++        services.AddDbContext<DocumentManagementDbContext>(options =>
++            options.UseNpgsql(connectionString));
++        services.AddScoped<IDocumentRepository, DocumentRepository>();
++        services.AddScoped<ICollectionRepository, CollectionRepository>();
++        services.AddScoped<IUserRepository, UserRepository>();
++        return services;
++    }
++}
+diff --git a/src/DocumentManagementSystem.Persistence/DocumentManagementDbContext.cs b/src/DocumentManagementSystem.Persistence/DocumentManagementDbContext.cs
+index b147503..2970f94 100644
+--- a/src/DocumentManagementSystem.Persistence/DocumentManagementDbContext.cs
++++ b/src/DocumentManagementSystem.Persistence/DocumentManagementDbContext.cs
+@@ -1,53 +1,66 @@
+-using DocumentManagementSystem.Domain.Entities;
+-using Microsoft.EntityFrameworkCore;
+-
+-namespace DocumentManagementSystem.Persistence;
+-
+-public sealed class DocumentManagementDbContext(DbContextOptions<DocumentManagementDbContext> options)
+-    : DbContext(options)
+-{
+-    public DbSet<Document> Documents => Set<Document>();
+-    public DbSet<Collection> Collections => Set<Collection>();
+-    public DbSet<CollectionDocument> CollectionDocuments => Set<CollectionDocument>();
+-
+-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+-    {
+-        modelBuilder.Entity<Document>(entity =>
+-        {
+-            entity.ToTable("documents");
+-            entity.HasKey(document => document.Id);
+-            entity.Property(document => document.FileName).IsRequired().HasMaxLength(255);
+-            entity.Property(document => document.ContentType).IsRequired().HasMaxLength(100);
+-            entity.Property(document => document.FileSize).IsRequired();
+-            entity.Property(document => document.Content).IsRequired();
+-            entity.Property(document => document.Title).HasMaxLength(200);
+-            entity.Property(document => document.Description).HasMaxLength(1000);
+-            entity.Property(document => document.Status).IsRequired();
+-            entity.Property(document => document.CreatedAt).IsRequired();
+-            entity.Property(document => document.UpdatedAt)
+-                .HasColumnName("updatedat")
+-                .IsRequired();
+-        });
+-
+-        modelBuilder.Entity<Collection>(entity =>
+-        {
+-            entity.ToTable("collections");
+-            entity.HasKey(collection => collection.Id);
+-            entity.Property(collection => collection.Name).IsRequired().HasMaxLength(200);
+-        });
+-
+-        modelBuilder.Entity<CollectionDocument>(entity =>
+-        {
+-            entity.ToTable("collection_documents");
+-            entity.HasKey(link => new { link.CollectionId, link.DocumentId });
+-            entity.HasOne(link => link.Collection)
+-                .WithMany(collection => collection.CollectionDocuments)
+-                .HasForeignKey(link => link.CollectionId)
+-                .OnDelete(DeleteBehavior.Cascade);
+-            entity.HasOne(link => link.Document)
+-                .WithMany(document => document.CollectionDocuments)
+-                .HasForeignKey(link => link.DocumentId)
+-                .OnDelete(DeleteBehavior.Cascade);
+-        });
+-    }
++using DocumentManagementSystem.Domain.Entities;
++using Microsoft.EntityFrameworkCore;
++
++namespace DocumentManagementSystem.Persistence;
++
++public sealed class DocumentManagementDbContext(DbContextOptions<DocumentManagementDbContext> options)
++    : DbContext(options)
++{
++    public DbSet<Document> Documents => Set<Document>();
++    public DbSet<Collection> Collections => Set<Collection>();
++    public DbSet<CollectionDocument> CollectionDocuments => Set<CollectionDocument>();
++    public DbSet<User> Users => Set<User>();
++
++    protected override void OnModelCreating(ModelBuilder modelBuilder)
++    {
++        modelBuilder.Entity<Document>(entity =>
++        {
++            entity.ToTable("documents");
++            entity.HasKey(document => document.Id);
++            entity.Property(document => document.FileName).IsRequired().HasMaxLength(255);
++            entity.Property(document => document.ContentType).IsRequired().HasMaxLength(100);
++            entity.Property(document => document.FileSize).IsRequired();
++            entity.Property(document => document.Content).IsRequired();
++            entity.Property(document => document.Title).HasMaxLength(200);
++            entity.Property(document => document.Description).HasMaxLength(1000);
++            entity.Property(document => document.Status).IsRequired();
++            entity.Property(document => document.CreatedAt).IsRequired();
++            entity.Property(document => document.UpdatedAt)
++                .HasColumnName("updatedat")
++                .IsRequired();
++        });
++
++        modelBuilder.Entity<Collection>(entity =>
++        {
++            entity.ToTable("collections");
++            entity.HasKey(collection => collection.Id);
++            entity.Property(collection => collection.Name).IsRequired().HasMaxLength(200);
++        });
++
++
++        modelBuilder.Entity<User>(entity =>
++        {
++            entity.ToTable("users");
++            entity.HasKey(user => user.Id);
++            entity.Property(user => user.Username).IsRequired().HasMaxLength(50);
++            entity.Property(user => user.NormalizedUsername).IsRequired().HasMaxLength(50);
++            entity.Property(user => user.PasswordHash).IsRequired().HasMaxLength(512);
++            entity.Property(user => user.CreatedAt).IsRequired();
++            entity.HasIndex(user => user.NormalizedUsername).IsUnique();
++        });
++
++        modelBuilder.Entity<CollectionDocument>(entity =>
++        {
++            entity.ToTable("collection_documents");
++            entity.HasKey(link => new { link.CollectionId, link.DocumentId });
++            entity.HasOne(link => link.Collection)
++                .WithMany(collection => collection.CollectionDocuments)
++                .HasForeignKey(link => link.CollectionId)
++                .OnDelete(DeleteBehavior.Cascade);
++            entity.HasOne(link => link.Document)
++                .WithMany(document => document.CollectionDocuments)
++                .HasForeignKey(link => link.DocumentId)
++                .OnDelete(DeleteBehavior.Cascade);
++        });
++    }
+ }
+\ No newline at end of file
+diff --git a/src/DocumentManagementSystem.Persistence/IUserRepository.cs b/src/DocumentManagementSystem.Persistence/IUserRepository.cs
+new file mode 100644
+index 0000000..d5ab631
+--- /dev/null
++++ b/src/DocumentManagementSystem.Persistence/IUserRepository.cs
+@@ -0,0 +1,10 @@
++using DocumentManagementSystem.Domain.Entities;
++
++namespace DocumentManagementSystem.Persistence;
++
++public interface IUserRepository
++{
++    User? GetByNormalizedUsername(string normalizedUsername);
++    bool ExistsByNormalizedUsername(string normalizedUsername);
++    User Add(User user);
++}
+diff --git a/src/DocumentManagementSystem.Persistence/Migrations/20261012210000_AddUsers.cs b/src/DocumentManagementSystem.Persistence/Migrations/20261012210000_AddUsers.cs
+new file mode 100644
+index 0000000..c55703c
+--- /dev/null
++++ b/src/DocumentManagementSystem.Persistence/Migrations/20261012210000_AddUsers.cs
+@@ -0,0 +1,40 @@
++using Microsoft.EntityFrameworkCore.Infrastructure;
++using Microsoft.EntityFrameworkCore.Migrations;
++
++#nullable disable
++
++namespace DocumentManagementSystem.Persistence.Migrations;
++
++[DbContext(typeof(DocumentManagementDbContext))]
++[Migration("20261012210000_AddUsers")]
++public partial class AddUsers : Migration
++{
++    protected override void Up(MigrationBuilder migrationBuilder)
++    {
++        migrationBuilder.CreateTable(
++            name: "users",
++            columns: table => new
++            {
++                Id = table.Column<Guid>(type: "uuid", nullable: false),
++                Username = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
++                NormalizedUsername = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
++                PasswordHash = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: false),
++                CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
++            },
++            constraints: table =>
++            {
++                table.PrimaryKey("PK_users", x => x.Id);
++            });
++
++        migrationBuilder.CreateIndex(
++            name: "IX_users_NormalizedUsername",
++            table: "users",
++            column: "NormalizedUsername",
++            unique: true);
++    }
++
++    protected override void Down(MigrationBuilder migrationBuilder)
++    {
++        migrationBuilder.DropTable(name: "users");
++    }
++}
+diff --git a/src/DocumentManagementSystem.Persistence/Migrations/DocumentManagementDbContextModelSnapshot.cs b/src/DocumentManagementSystem.Persistence/Migrations/DocumentManagementDbContextModelSnapshot.cs
+index 6514712..d8e58aa 100644
+--- a/src/DocumentManagementSystem.Persistence/Migrations/DocumentManagementDbContextModelSnapshot.cs
++++ b/src/DocumentManagementSystem.Persistence/Migrations/DocumentManagementDbContextModelSnapshot.cs
+@@ -1,136 +1,200 @@
+-﻿// <auto-generated />
+-using System;
+-using DocumentManagementSystem.Persistence;
+-using Microsoft.EntityFrameworkCore;
+-using Microsoft.EntityFrameworkCore.Infrastructure;
+-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+-using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+-
+-#nullable disable
+-
+-namespace DocumentManagementSystem.Persistence.Migrations
+-{
+-    [DbContext(typeof(DocumentManagementDbContext))]
+-    partial class DocumentManagementDbContextModelSnapshot : ModelSnapshot
+-    {
+-        protected override void BuildModel(ModelBuilder modelBuilder)
+-        {
+-#pragma warning disable 612, 618
+-            modelBuilder
+-                .HasAnnotation("ProductVersion", "9.0.4")
+-                .HasAnnotation("Relational:MaxIdentifierLength", 63);
+-
+-            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+-
+-            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.Collection", b =>
+-                {
+-                    b.Property<Guid>("Id")
+-                        .ValueGeneratedOnAdd()
+-                        .HasColumnType("uuid");
+-
+-                    b.Property<DateTimeOffset>("CreatedAt")
+-                        .HasColumnType("timestamp with time zone");
+-
+-                    b.Property<string>("Name")
+-                        .IsRequired()
+-                        .HasMaxLength(200)
+-                        .HasColumnType("character varying(200)");
+-
+-                    b.HasKey("Id");
+-
+-                    b.ToTable("collections", (string)null);
+-                });
+-
+-            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.CollectionDocument", b =>
+-                {
+-                    b.Property<Guid>("CollectionId")
+-                        .HasColumnType("uuid");
+-
+-                    b.Property<Guid>("DocumentId")
+-                        .HasColumnType("uuid");
+-
+-                    b.HasKey("CollectionId", "DocumentId");
+-
+-                    b.HasIndex("DocumentId");
+-
+-                    b.ToTable("collection_documents", (string)null);
+-                });
+-
+-            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.Document", b =>
+-                {
+-                    b.Property<Guid>("Id")
+-                        .ValueGeneratedOnAdd()
+-                        .HasColumnType("uuid");
+-
+-                    b.Property<byte[]>("Content")
+-                        .IsRequired()
+-                        .HasColumnType("bytea");
+-
+-                    b.Property<string>("ContentType")
+-                        .IsRequired()
+-                        .HasMaxLength(100)
+-                        .HasColumnType("character varying(100)");
+-
+-                    b.Property<DateTimeOffset>("CreatedAt")
+-                        .HasColumnType("timestamp with time zone");
+-
+-                    b.Property<string>("Description")
+-                        .HasMaxLength(1000)
+-                        .HasColumnType("character varying(1000)");
+-
+-                    b.Property<string>("FileName")
+-                        .IsRequired()
+-                        .HasMaxLength(255)
+-                        .HasColumnType("character varying(255)");
+-
+-                    b.Property<long>("FileSize")
+-                        .HasColumnType("bigint");
+-
+-                    b.Property<int>("Status")
+-                        .HasColumnType("integer");
+-
+-                    b.Property<string>("Title")
+-                        .HasMaxLength(200)
+-                        .HasColumnType("character varying(200)");
+-
+-                    b.Property<DateTimeOffset>("UpdatedAt")
+-                        .HasColumnType("timestamp with time zone")
+-                        .HasColumnName("updatedat");
+-
+-                    b.HasKey("Id");
+-
+-                    b.ToTable("documents", (string)null);
+-                });
+-
+-            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.CollectionDocument", b =>
+-                {
+-                    b.HasOne("DocumentManagementSystem.Domain.Entities.Collection", "Collection")
+-                        .WithMany("CollectionDocuments")
+-                        .HasForeignKey("CollectionId")
+-                        .OnDelete(DeleteBehavior.Cascade)
+-                        .IsRequired();
+-
+-                    b.HasOne("DocumentManagementSystem.Domain.Entities.Document", "Document")
+-                        .WithMany("CollectionDocuments")
+-                        .HasForeignKey("DocumentId")
+-                        .OnDelete(DeleteBehavior.Cascade)
+-                        .IsRequired();
+-
+-                    b.Navigation("Collection");
+-
+-                    b.Navigation("Document");
+-                });
+-
+-            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.Collection", b =>
+-                {
+-                    b.Navigation("CollectionDocuments");
+-                });
+-
+-            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.Document", b =>
+-                {
+-                    b.Navigation("CollectionDocuments");
+-                });
+-#pragma warning restore 612, 618
+-        }
+-    }
+-}
++﻿// <auto-generated />
++using System;
++using DocumentManagementSystem.Persistence;
++using Microsoft.EntityFrameworkCore;
++using Microsoft.EntityFrameworkCore.Infrastructure;
++using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
++using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
++
++#nullable disable
++
++namespace DocumentManagementSystem.Persistence.Migrations
++{
++    [DbContext(typeof(DocumentManagementDbContext))]
++    partial class DocumentManagementDbContextModelSnapshot : ModelSnapshot
++    {
++        protected override void BuildModel(ModelBuilder modelBuilder)
++        {
++#pragma warning disable 612, 618
++            modelBuilder
++                .HasAnnotation("ProductVersion", "9.0.4")
++                .HasAnnotation("Relational:MaxIdentifierLength", 63);
++
++            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
++
++            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.Collection", b =>
++                {
++                    b.Property<Guid>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("uuid");
++
++                    b.Property<DateTimeOffset>("CreatedAt")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.Property<string>("Name")
++                        .IsRequired()
++                        .HasMaxLength(200)
++                        .HasColumnType("character varying(200)");
++
++                    b.HasKey("Id");
++
++                    b.ToTable("collections", (string)null);
++                });
++
++            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.CollectionDocument", b =>
++                {
++                    b.Property<Guid>("CollectionId")
++                        .HasColumnType("uuid");
++
++                    b.Property<Guid>("DocumentId")
++                        .HasColumnType("uuid");
++
++                    b.HasKey("CollectionId", "DocumentId");
++
++                    b.HasIndex("DocumentId");
++
++                    b.ToTable("collection_documents", (string)null);
++                });
++
++            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.User", b =>
++                {
++                    b.Property<Guid>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("uuid");
++
++                    b.Property<DateTimeOffset>("CreatedAt")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.Property<string>("NormalizedUsername")
++                        .IsRequired()
++                        .HasMaxLength(50)
++                        .HasColumnType("character varying(50)");
++
++                    b.Property<string>("PasswordHash")
++                        .IsRequired()
++                        .HasMaxLength(512)
++                        .HasColumnType("character varying(512)");
++
++                    b.Property<string>("Username")
++                        .IsRequired()
++                        .HasMaxLength(50)
++                        .HasColumnType("character varying(50)");
++
++                    b.HasKey("Id");
++
++                    b.HasIndex("NormalizedUsername")
++                        .IsUnique();
++
++                    b.ToTable("users", (string)null);
++                });
++
++            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.Document", b =>
++                {
++                    b.Property<Guid>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("uuid");
++
++                    b.Property<byte[]>("Content")
++                        .IsRequired()
++                        .HasColumnType("bytea");
++
++                    b.Property<string>("ContentType")
++                        .IsRequired()
++                        .HasMaxLength(100)
++                        .HasColumnType("character varying(100)");
++
++                    b.Property<DateTimeOffset>("CreatedAt")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.Property<string>("Description")
++                        .HasMaxLength(1000)
++                        .HasColumnType("character varying(1000)");
++
++                    b.Property<string>("FileName")
++                        .IsRequired()
++                        .HasMaxLength(255)
++                        .HasColumnType("character varying(255)");
++
++                    b.Property<long>("FileSize")
++                        .HasColumnType("bigint");
++
++                    b.Property<int>("Status")
++                        .HasColumnType("integer");
++
++                    b.Property<string>("Title")
++                        .HasMaxLength(200)
++                        .HasColumnType("character varying(200)");
++
++                    b.Property<DateTimeOffset>("UpdatedAt")
++                        .HasColumnType("timestamp with time zone")
++                        .HasColumnName("updatedat");
++
++                    b.HasKey("Id");
++
++                    b.ToTable("documents", (string)null);
++                });
++
++            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.CollectionDocument", b =>
++                {
++                    b.HasOne("DocumentManagementSystem.Domain.Entities.Collection", "Collection")
++                        .WithMany("CollectionDocuments")
++                        .HasForeignKey("CollectionId")
++                        .OnDelete(DeleteBehavior.Cascade)
++                        .IsRequired();
++
++                    b.HasOne("DocumentManagementSystem.Domain.Entities.Document", "Document")
++                        .WithMany("CollectionDocuments")
++                        .HasForeignKey("DocumentId")
++                        .OnDelete(DeleteBehavior.Cascade)
++                        .IsRequired();
++
++                    b.Navigation("Collection");
++
++                    b.Navigation("Document");
++                });
++
++            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.Collection", b =>
++                {
++                    b.Navigation("CollectionDocuments");
++                });
++
++            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.User", b =>
++                {
++                    b.Property<Guid>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("uuid");
++
++                    b.Property<DateTimeOffset>("CreatedAt")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.Property<string>("NormalizedUsername")
++                        .IsRequired()
++                        .HasMaxLength(50)
++                        .HasColumnType("character varying(50)");
++
++                    b.Property<string>("PasswordHash")
++                        .IsRequired()
++                        .HasMaxLength(512)
++                        .HasColumnType("character varying(512)");
++
++                    b.Property<string>("Username")
++                        .IsRequired()
++                        .HasMaxLength(50)
++                        .HasColumnType("character varying(50)");
++
++                    b.HasKey("Id");
++
++                    b.HasIndex("NormalizedUsername")
++                        .IsUnique();
++
++                    b.ToTable("users", (string)null);
++                });
++
++            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.Document", b =>
++                {
++                    b.Navigation("CollectionDocuments");
++                });
++#pragma warning restore 612, 618
++        }
++    }
++}
+diff --git a/src/DocumentManagementSystem.Persistence/UserRepository.cs b/src/DocumentManagementSystem.Persistence/UserRepository.cs
+new file mode 100644
+index 0000000..40584cd
+--- /dev/null
++++ b/src/DocumentManagementSystem.Persistence/UserRepository.cs
+@@ -0,0 +1,19 @@
++using DocumentManagementSystem.Domain.Entities;
++
++namespace DocumentManagementSystem.Persistence;
++
++public sealed class UserRepository(DocumentManagementDbContext dbContext) : IUserRepository
++{
++    public User? GetByNormalizedUsername(string normalizedUsername) =>
++        dbContext.Users.SingleOrDefault(user => user.NormalizedUsername == normalizedUsername);
++
++    public bool ExistsByNormalizedUsername(string normalizedUsername) =>
++        dbContext.Users.Any(user => user.NormalizedUsername == normalizedUsername);
++
++    public User Add(User user)
++    {
++        dbContext.Users.Add(user);
++        dbContext.SaveChanges();
++        return user;
++    }
++}
