@@ -6,7 +6,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 FRONTEND_URL="${FRONTEND_URL:-http://localhost}"
-API_URL="${API_URL:-http://localhost:8080}"
+API_URL="${API_URL:-$FRONTEND_URL/api}"
 
 PASS=0
 FAIL=0
@@ -68,10 +68,10 @@ echo "nginx proxies the REST API"
 expect_status "GET /api/collections" "$FRONTEND_URL/api/collections" 200
 
 echo
-echo "REST API"
-expect_status "GET /health" "$API_URL/health" 200
-expect_status "GET /collections" "$API_URL/collections" 200
-expect_status "GET /documents" "$API_URL/documents" 200
+echo "REST API (through nginx)"
+expect_status "GET /api/health" "$API_URL/health" 200
+expect_status "GET /api/collections" "$API_URL/collections" 200
+expect_status "GET /api/documents" "$API_URL/documents" 200
 
 echo
 echo "Container networking"

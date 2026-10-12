@@ -1,6 +1,8 @@
 using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Application.Services;
+using DocumentManagementSystem.Application.Validation;
 using DocumentManagementSystem.Domain.Entities;
+using FluentValidation;
 using Microsoft.AspNetCore.Http;
 
 namespace DocumentManagementSystem.Persistence.Tests;
@@ -30,10 +32,10 @@ public sealed class DocumentServiceTests
     {
         var service = CreateService();
 
-        var exception = await Assert.ThrowsAsync<ArgumentException>(
+        var exception = await Assert.ThrowsAsync<ValidationException>(
             () => service.UploadAsync(CreateUploadRequest("empty.pdf", Array.Empty<byte>())));
 
-        Assert.Equal("request", exception.ParamName);
+        Assert.Contains(exception.Errors, error => error.ErrorMessage == "The uploaded file must not be empty.");
     }
 
     [Fact]
@@ -41,10 +43,10 @@ public sealed class DocumentServiceTests
     {
         var service = CreateService();
 
-        var exception = await Assert.ThrowsAsync<ArgumentException>(
+        var exception = await Assert.ThrowsAsync<ValidationException>(
             () => service.UploadAsync(CreateUploadRequest("notes.txt")));
 
-        Assert.Equal("request", exception.ParamName);
+        Assert.Contains(exception.Errors, error => error.ErrorMessage == "Only PDF documents are accepted.");
     }
 
     [Fact]
@@ -52,10 +54,11 @@ public sealed class DocumentServiceTests
     {
         var service = CreateService();
 
-        var exception = await Assert.ThrowsAsync<ArgumentException>(
+        var exception = await Assert.ThrowsAsync<ValidationException>(
             () => service.UploadAsync(CreateUploadRequest("invoice.pdf", "%PDF-1.4"u8.ToArray(), "text/plain")));
 
-        Assert.Equal("request", exception.ParamName);
+        Assert.Contains(exception.Errors,
+            error => error.ErrorMessage == "The uploaded file must have content type application/pdf.");
     }
 
     [Fact]
@@ -63,10 +66,10 @@ public sealed class DocumentServiceTests
     {
         var service = CreateService();
 
-        var exception = await Assert.ThrowsAsync<ArgumentException>(
+        var exception = await Assert.ThrowsAsync<ValidationException>(
             () => service.UploadAsync(CreateUploadRequest("invoice.pdf", "not-a-pdf"u8.ToArray())));
 
-        Assert.Equal("request", exception.ParamName);
+        Assert.Contains(exception.Errors, error => error.ErrorMessage == "The uploaded file is not a valid PDF.");
     }
 
     [Fact]
@@ -113,7 +116,8 @@ public sealed class DocumentServiceTests
     }
 
     private DocumentService CreateService() =>
-        new(new DocumentRepository(_database.CreateContext()), TestMapper.Create());
+        new(new DocumentRepository(_database.CreateContext()), TestMapper.Create(),
+            new UploadDocumentRequestValidator());
 
     private Guid SeedDocument(string fileName, DateTimeOffset? createdAt = null)
     {

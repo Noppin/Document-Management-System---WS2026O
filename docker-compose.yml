@@ -5,8 +5,6 @@ services:
       POSTGRES_DB: document_management
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -23,8 +21,6 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DocumentManagementDb: Host=postgres;Port=5432;Database=document_management;Username=postgres;Password=postgres
-    ports:
-      - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy

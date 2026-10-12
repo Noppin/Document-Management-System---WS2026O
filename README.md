@@ -53,16 +53,21 @@ Check the running services:
 
 ```powershell
 docker compose ps
-Invoke-WebRequest http://localhost:8080/health -UseBasicParsing
+Invoke-WebRequest http://localhost/api/health -UseBasicParsing
 ```
 
 The expected health response is `200 OK` with `{"status":"ok"}`.
 
-Open the API at:
+Open the API through nginx at:
 
 ```text
-http://localhost:8080
+http://localhost/api
 ```
+
+The `api` and `postgres` containers are not published to the host by default, so
+the backend stays behind nginx. For direct debugging, the
+`docker-compose.override.yml` maps the API to `http://localhost:8080` and
+PostgreSQL to `localhost:5433`.
 
 Swagger is disabled in the Docker Production environment. Use the HTTP client
 or curl requests in the `http` folder to call the endpoints.
@@ -250,9 +255,9 @@ Upload the bundled sample PDF with one of the helper scripts:
 ./scripts/upload-document.sh
 ```
 
-Both default to `http/sample.pdf` and `http://localhost:8080` (Docker Compose).
-Pass a file path and base URL to override them, for example a local `dotnet run`
-on port `5000`:
+Both default to `http/sample.pdf` and `http://localhost/api` (Docker Compose,
+through nginx). Pass a file path and base URL to override them, for example a
+local `dotnet run` on port `5000`:
 
 ```powershell
 ./scripts/upload-document.ps1 -File http/sample.pdf -BaseUrl http://localhost:5000
@@ -273,7 +278,7 @@ It prints one line per check and exits non-zero if any check fails, so it can be
 used as a build gate. The base URLs can be overridden:
 
 ```bash
-FRONTEND_URL=http://localhost API_URL=http://localhost:8080 ./scripts/smoke-test.sh
+FRONTEND_URL=http://localhost API_URL=http://localhost/api ./scripts/smoke-test.sh
 ```
 
 ## Environment settings

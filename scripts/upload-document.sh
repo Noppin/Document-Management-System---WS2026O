@@ -3,10 +3,10 @@ set -euo pipefail
 
 # Upload a PDF document to the Document Management System REST API.
 # Usage:   ./scripts/upload-document.sh [path-to-pdf] [base-url]
-# Example: ./scripts/upload-document.sh http/sample.pdf http://localhost:8080
+# Example: ./scripts/upload-document.sh http/sample.pdf http://localhost/api
 
 FILE="${1:-http/sample.pdf}"
-BASE_URL="${2:-http://localhost:8080}"
+BASE_URL="${2:-http://localhost/api}"
 
 if [[ ! -f "$FILE" ]]; then
   echo "File not found: $FILE" >&2
