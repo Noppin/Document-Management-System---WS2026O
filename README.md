@@ -338,3 +338,31 @@ FRONTEND_URL=http://localhost API_URL=http://localhost/api KEYCLOAK_URL=http://l
 ## Environment settings
 
 The default environment is configured in [launchSettings.json](src/DocumentManagementSystem.Api/Properties/launchSettings.json). The application enables Swagger only when `ASPNETCORE_ENVIRONMENT` is `Development`.
+
+## CI & Releases
+
+Two GitHub Actions workflows run in
+[.github/workflows](.github/workflows):
+
+- **`ci.yml`** runs on every pull request and push to `dev` and `main`. It
+  builds and tests the backend (`dotnet restore`/`build`/`test`) and the
+  frontend (`npm ci`/`build`/`test`).
+- **`sprint-release.yml`** creates a GitHub release when a tag matching
+  `sprint-[0-9]+` (for example `sprint-3`) is pushed. The tagged commit must
+  already be on `main`; the workflow then creates the release and GitHub
+  attaches the source code zip automatically.
+
+### Creating a sprint release
+
+The sprint submission is the state of `main`, so merge the sprint work into
+`main` first, then tag that commit:
+
+```bash
+git checkout main
+git pull
+git tag sprint-3
+git push origin sprint-3
+```
+
+`origin` must point to the sprint commit on `main`, otherwise the release job
+fails with `zeigt auf keinen Commit in main`.
