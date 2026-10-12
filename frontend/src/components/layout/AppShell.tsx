@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   AppBar,
   Box,
+  Button,
   Divider,
   Drawer,
   IconButton,
@@ -21,6 +22,8 @@ import UploadFileRoundedIcon from '@mui/icons-material/UploadFileRounded';
 import FolderRoundedIcon from '@mui/icons-material/FolderRounded';
 import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
+import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
+import { getUsername, logout } from '../../auth/keycloak';
 
 const drawerWidth = 248;
 
@@ -32,8 +35,9 @@ const navigation = [
 
 function Navigation() {
   const location = useLocation();
+  const username = getUsername();
   return (
-    <>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Toolbar sx={{ px: 2.5 }}>
         <Stack direction="row" spacing={1.5} alignItems="center">
           <Box sx={{ width: 38, height: 38, borderRadius: 2.5, bgcolor: 'primary.main', color: 'primary.contrastText', display: 'grid', placeItems: 'center' }}>
@@ -46,7 +50,7 @@ function Navigation() {
         </Stack>
       </Toolbar>
       <Divider />
-      <List sx={{ p: 1.5 }}>
+      <List sx={{ p: 1.5, flexGrow: 1 }}>
         {navigation.map((item) => {
           const selected = item.to === '/' ? location.pathname === '/' : location.pathname.startsWith(item.to);
           return (
@@ -63,7 +67,18 @@ function Navigation() {
           );
         })}
       </List>
-    </>
+      <Divider />
+      <Box sx={{ p: 1.5 }}>
+        {username && (
+          <Typography variant="body2" color="text.secondary" noWrap sx={{ px: 1, mb: 1 }}>
+            {username}
+          </Typography>
+        )}
+        <Button fullWidth onClick={logout} startIcon={<LogoutRoundedIcon />} sx={{ justifyContent: 'flex-start' }}>
+          Logout
+        </Button>
+      </Box>
+    </Box>
   );
 }
 

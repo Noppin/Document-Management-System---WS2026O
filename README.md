@@ -123,6 +123,50 @@ npm run test:watch
 `npm run build` is the same command the frontend Dockerfile runs, so a build
 that fails locally also fails in `docker compose build`.
 
+## Authentication (Keycloak)
+
+The REST API is protected with OAuth2 / OpenID Connect. Authentication is
+delegated to a Keycloak authorization server that runs as the `keycloak`
+service in `docker compose`; the user database lives in Keycloak.
+
+- Keycloak admin console: `http://localhost:8180` (`admin` / `admin`)
+- Realm: `dms`
+- Clients: `frontend` (public SPA, Authorization Code flow with PKCE) and
+  `api` (bearer-only resource server)
+- Test users: `alice` / `password` (role `user`) and `admin` / `admin`
+  (roles `admin`, `user`)
+
+The frontend logs the user in through Keycloak (`login-required`), stores the
+access token and sends it as a `Bearer` token to the REST API. The backend
+validates the token against the `dms` realm (`Keycloak:Authority`) and the
+`api` audience (`Keycloak:Audience`). The `documents` and `collections`
+endpoints require a valid token and return `401` without one; `GET /health`
+stays public.
+
+The realm and test users are versioned in
+[keycloak/realm-export.json](keycloak/realm-export.json) and imported on
+startup (`--import-realm`).
+
+### Calling the API with a token
+
+Request an access token from Keycloak with the password grant (the `frontend`
+client has direct access grants enabled for testing):
+
+```bash
+TOKEN=$(curl -s -X POST \
+  http://localhost:8180/realms/dms/protocol/openid-connect/token \
+  -d grant_type=password -d client_id=frontend \
+  -d username=alice -d password=password | jq -r .access_token)
+```
+
+Then call a protected endpoint:
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" http://localhost/api/documents
+```
+
+Without the header the API answers `401 Unauthorized`.
+
 ## Database migrations
 
 The API applies pending EF Core migrations automatically on startup
@@ -169,7 +213,7 @@ Get-NetTCPConnection -LocalPort 5000 -State Listen |
 Development shortcut with Swagger:
 
 ```powershell
-docker compose up -d postgres; dotnet run --project src\DocumentManagementSystem.Api\DocumentManagementSystem.Api.csproj --environment Development
+docker compose up -d postgres keycloak; dotnet run --project src\DocumentManagementSystem.Api\DocumentManagementSystem.Api.csproj --environment Development
 ```
 
 Open Swagger at `http://localhost:5000/swagger`.
@@ -194,11 +238,11 @@ Then start the API:
 dotnet run --project src\DocumentManagementSystem.Api\DocumentManagementSystem.Api.csproj
 ```
 
-Make sure PostgreSQL is running first. You can start the Compose database
-without starting the API:
+Make sure PostgreSQL and Keycloak are running first. You can start the Compose
+database and Keycloak without starting the API:
 
 ```powershell
-docker compose up -d postgres
+docker compose up -d postgres keycloak
 ```
 
 The local API uses the connection string in
@@ -217,6 +261,11 @@ http://localhost:5000/swagger
 
 ## Endpoints
 
+All `documents` and `collections` endpoints require a Keycloak access token
+(`Authorization: Bearer …`) and return `401` without one. See
+[Authentication (Keycloak)](#authentication-keycloak). The health check below
+is public.
+
 ### Health check
 
 ```powershell
@@ -228,10 +277,12 @@ Expected status: `200 OK`.
 ### Upload a PDF with Swagger
 
 1. Open `http://localhost:5000/swagger` in Development.
-2. Expand `POST /documents`.
-3. Click **Try it out**.
-4. Select a PDF using **Choose File**.
-5. Click **Execute**.
+2. Click **Authorize**, paste a Keycloak access token (see
+   [Calling the API with a token](#calling-the-api-with-a-token)) and confirm.
+3. Expand `POST /documents`.
+4. Click **Try it out**.
+5. Select a PDF using **Choose File**.
+6. Click **Execute**.
 
 Valid uploads must be non-empty PDF files with the `application/pdf` content type and a `%PDF-` header. Successful uploads return `201 Created`; invalid uploads return `400 Bad Request`.
 
@@ -240,8 +291,9 @@ Valid uploads must be non-empty PDF files with the `application/pdf` content typ
 ### HTTP client
 
 Open [http/paperless.http](http/paperless.http) in Visual Studio or Visual Studio
-Code (REST Client) and run the requests. It covers the health check, document
-upload/list/get/delete and the collection endpoints.
+Code (REST Client) and run the requests. The first request fetches a Keycloak
+access token and every following request sends it automatically; it covers the
+health check, document upload/list/get/delete and the collection endpoints.
 
 ### Upload via curl
 
@@ -271,14 +323,16 @@ local `dotnet run` on port `5000`:
 
 The script verifies the Sprint-2 setup end to end: all Compose services are
 running, nginx serves the React build, SPA routes survive a browser refresh,
-`/api/*` reaches the REST API, the frontend container resolves the API container
-by service name and PostgreSQL accepts connections.
+`/api/*` reaches the REST API (protected endpoints answer `401` without a
+token and `200` with one), Keycloak serves the `dms` realm, the frontend
+container resolves the API container by service name and PostgreSQL accepts
+connections.
 
 It prints one line per check and exits non-zero if any check fails, so it can be
 used as a build gate. The base URLs can be overridden:
 
 ```bash
-FRONTEND_URL=http://localhost API_URL=http://localhost/api ./scripts/smoke-test.sh
+FRONTEND_URL=http://localhost API_URL=http://localhost/api KEYCLOAK_URL=http://localhost:8180 ./scripts/smoke-test.sh
 ```
 
 ## Environment settings
