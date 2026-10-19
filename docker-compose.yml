@@ -13,6 +13,19 @@ services:
       timeout: 5s
       retries: 10
 
+  rabbitmq:
+    image: rabbitmq:4.1-management
+    environment:
+      RABBITMQ_DEFAULT_USER: dms
+      RABBITMQ_DEFAULT_PASS: dms
+    ports:
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
   api:
     build:
       context: .
@@ -22,8 +35,15 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DocumentManagementDb: Host=postgres;Port=5432;Database=document_management;Username=postgres;Password=postgres
       Keycloak__Authority: http://keycloak:8080/realms/dms
+      RabbitMq__HostName: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__UserName: dms
+      RabbitMq__Password: dms
+      RabbitMq__QueueName: dms.document.ocr
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   frontend:
