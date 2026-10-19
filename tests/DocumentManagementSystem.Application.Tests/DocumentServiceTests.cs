@@ -3,11 +3,13 @@ using DocumentManagementSystem.Application.Services;
 using DocumentManagementSystem.Application.Validation;
 using DocumentManagementSystem.Domain.Entities;
 using DocumentManagementSystem.Messaging;
+using DocumentManagementSystem.Persistence;
+using DocumentManagementSystem.TestHelpers;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace DocumentManagementSystem.Persistence.Tests;
+namespace DocumentManagementSystem.Application.Tests;
 
 public sealed class DocumentServiceTests
 {

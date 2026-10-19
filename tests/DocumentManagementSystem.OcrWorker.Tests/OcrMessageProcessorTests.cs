@@ -3,7 +3,7 @@ using DocumentManagementSystem.Messaging;
 using DocumentManagementSystem.OcrWorker;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace DocumentManagementSystem.Persistence.Tests;
+namespace DocumentManagementSystem.OcrWorker.Tests;
 
 public sealed class OcrMessageProcessorTests
 {

@@ -23,8 +23,12 @@ dotnet build DocumentManagementSystem.sln
 dotnet test DocumentManagementSystem.sln
 ```
 
-`dotnet test` runs the unit tests in
-`tests/DocumentManagementSystem.Persistence.Tests` against an in-memory database.
+`dotnet test` runs the unit tests of every layer. They are split by project:
+`tests/DocumentManagementSystem.Application.Tests`,
+`tests/DocumentManagementSystem.Persistence.Tests`,
+`tests/DocumentManagementSystem.Api.Tests` and
+`tests/DocumentManagementSystem.OcrWorker.Tests` run against an in-memory
+database, shared test fixtures live in `tests/DocumentManagementSystem.TestHelpers`.
 
 ## Start with Docker Compose
 

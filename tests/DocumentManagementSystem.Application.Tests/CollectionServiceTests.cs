@@ -1,8 +1,10 @@
 using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Application.Services;
 using DocumentManagementSystem.Domain.Entities;
+using DocumentManagementSystem.Persistence;
+using DocumentManagementSystem.TestHelpers;
 
-namespace DocumentManagementSystem.Persistence.Tests;
+namespace DocumentManagementSystem.Application.Tests;
 
 public sealed class CollectionServiceTests
 {
