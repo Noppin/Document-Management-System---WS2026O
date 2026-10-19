@@ -1,12 +1,17 @@
 using AutoMapper;
 using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Domain.Entities;
+using DocumentManagementSystem.Messaging;
 using DocumentManagementSystem.Persistence;
 using FluentValidation;
 
 namespace DocumentManagementSystem.Application.Services;
 
-public sealed class DocumentService(IDocumentRepository documents, IMapper mapper, IValidator<UploadDocumentRequest> validator) : IDocumentService
+public sealed class DocumentService(
+    IDocumentRepository documents,
+    IMapper mapper,
+    IValidator<UploadDocumentRequest> validator,
+    IDocumentQueuePublisher queuePublisher) : IDocumentService
 {
     public async Task<DocumentResponse> UploadAsync(
         UploadDocumentRequest request,
@@ -27,6 +32,17 @@ public sealed class DocumentService(IDocumentRepository documents, IMapper mappe
         };
 
         documents.Add(document);
+
+        await queuePublisher.PublishAsync(
+            new DocumentUploadedMessage(
+                MessageId: Guid.NewGuid(),
+                DocumentId: document.Id,
+                FileName: document.FileName,
+                ContentType: document.ContentType,
+                FileSize: document.FileSize,
+                UploadedAt: document.CreatedAt),
+            cancellationToken);
+
         return mapper.Map<DocumentResponse>(document);
     }
 

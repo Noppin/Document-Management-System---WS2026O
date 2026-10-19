@@ -2,6 +2,7 @@ using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Application.Services;
 using DocumentManagementSystem.Application.Validation;
 using DocumentManagementSystem.Domain.Entities;
+using DocumentManagementSystem.Messaging;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
 
@@ -25,6 +26,23 @@ public sealed class DocumentServiceTests
 
         using var context = _database.CreateContext();
         Assert.Single(new DocumentRepository(context).GetAll());
+    }
+
+
+    [Fact]
+    public async Task UploadAsync_ValidPdf_PublishesOcrQueueMessage()
+    {
+        var queue = new RecordingDocumentQueuePublisher();
+        var service = CreateService(queue);
+
+        var response = await service.UploadAsync(CreateUploadRequest("invoice.pdf"));
+
+        var message = Assert.Single(queue.Messages);
+        Assert.Equal(response.Id, message.DocumentId);
+        Assert.Equal("invoice.pdf", message.FileName);
+        Assert.Equal("application/pdf", message.ContentType);
+        Assert.Equal(8, message.FileSize);
+        Assert.NotEqual(Guid.Empty, message.MessageId);
     }
 
     [Fact]
@@ -115,9 +133,9 @@ public sealed class DocumentServiceTests
         Assert.False(CreateService().Delete(Guid.NewGuid()));
     }
 
-    private DocumentService CreateService() =>
+    private DocumentService CreateService(IDocumentQueuePublisher? queuePublisher = null) =>
         new(new DocumentRepository(_database.CreateContext()), TestMapper.Create(),
-            new UploadDocumentRequestValidator());
+            new UploadDocumentRequestValidator(), queuePublisher ?? new RecordingDocumentQueuePublisher());
 
     private Guid SeedDocument(string fileName, DateTimeOffset? createdAt = null)
     {
@@ -149,5 +167,18 @@ public sealed class DocumentServiceTests
                 ContentType = contentType
             }
         };
+    }
+
+    private sealed class RecordingDocumentQueuePublisher : IDocumentQueuePublisher
+    {
+        public List<DocumentUploadedMessage> Messages { get; } = [];
+
+        public Task PublishAsync(
+            DocumentUploadedMessage message,
+            CancellationToken cancellationToken = default)
+        {
+            Messages.Add(message);
+            return Task.CompletedTask;
+        }
     }
 }
