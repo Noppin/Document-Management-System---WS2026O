@@ -33,7 +33,11 @@ public sealed class CollectionRepository(
     public Collection? GetById(Guid id) => dbContext.Collections
         .AsNoTracking()
         .Include(collection => collection.CollectionDocuments)
+        .ThenInclude(link => link.Document)
         .SingleOrDefault(collection => collection.Id == id);
+
+    public bool ExistsByName(string name) => dbContext.Collections
+        .Any(collection => collection.Name == name);
 
     public bool AddDocument(Guid collectionId, Guid documentId)
     {

@@ -21,6 +21,9 @@ public sealed class UploadDocumentRequestValidator : AbstractValidator<UploadDoc
             RuleFor(request => request.File.FileName)
                 .Must(fileName => string.Equals(Path.GetExtension(fileName), ".pdf", StringComparison.OrdinalIgnoreCase))
                 .WithMessage("Only PDF documents are accepted.");
+            RuleFor(request => request.File.FileName)
+                .Must(fileName => fileName is null || Path.GetFileName(fileName).Length <= 255)
+                .WithMessage("The file name must use at most 255 characters.");
             RuleFor(request => request.File.ContentType)
                 .Must(contentType => string.Equals(contentType, "application/pdf", StringComparison.OrdinalIgnoreCase))
                 .WithMessage("The uploaded file must have content type application/pdf.");

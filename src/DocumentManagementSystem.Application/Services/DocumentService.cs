@@ -30,7 +30,8 @@ public sealed class DocumentService(
             FileName = Path.GetFileName(request.File.FileName),
             ContentType = request.File.ContentType,
             FileSize = request.File.Length,
-            Content = content
+            Content = content,
+            Status = DocumentStatus.Queued
         };
 
         documents.Add(document);

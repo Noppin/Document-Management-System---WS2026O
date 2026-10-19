@@ -2,6 +2,7 @@ using AutoMapper;
 using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Domain.Entities;
 using DocumentManagementSystem.Persistence;
+using FluentValidation;
 using Microsoft.Extensions.Logging;
 
 namespace DocumentManagementSystem.Application.Services;
@@ -9,15 +10,19 @@ namespace DocumentManagementSystem.Application.Services;
 public sealed class CollectionService(
     ICollectionRepository collectionRepository,
     IDocumentRepository documentRepository,
+    IValidator<CreateCollectionRequest> validator,
     IMapper mapper,
     ILogger<CollectionService> logger) : ICollectionService
 {
     public CollectionResponse Create(CreateCollectionRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
-            throw new ArgumentException("A collection name is required.", nameof(request));
+        validator.ValidateAndThrow(request);
 
-        var collection = collectionRepository.Add(new Collection { Name = request.Name.Trim() });
+        var name = request.Name.Trim();
+        if (collectionRepository.ExistsByName(name))
+            throw new ArgumentException($"A collection named '{name}' already exists.");
+
+        var collection = collectionRepository.Add(new Collection { Name = name });
 
         logger.LogInformation(
             "Created collection {CollectionId} ({CollectionName})",
@@ -39,13 +44,7 @@ public sealed class CollectionService(
             return null;
         }
 
-        var documents = collection.CollectionDocuments
-            .Select(link => documentRepository.GetById(link.DocumentId))
-            .OfType<Document>()
-            .Select(document => mapper.Map<DocumentResponse>(document))
-            .ToList();
-
-        return new CollectionDetailResponse(collection.Id, collection.Name, collection.CreatedAt, documents);
+        return mapper.Map<CollectionDetailResponse>(collection);
     }
 
     public bool AddDocument(Guid collectionId, Guid documentId)
