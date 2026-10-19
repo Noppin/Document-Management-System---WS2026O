@@ -1,6 +1,7 @@
 using DocumentManagementSystem.Persistence;
 using DocumentManagementSystem.Application;
 using DocumentManagementSystem.Api.ExceptionHandling;
+using DocumentManagementSystem.Messaging;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.OpenApi.Models;
 
@@ -13,6 +14,9 @@ var connectionString = builder.Configuration.GetConnectionString("DocumentManage
 	?? throw new InvalidOperationException("Connection string 'DocumentManagementDb' is not configured.");
 builder.Services.AddPersistence(connectionString);
 builder.Services.AddApplication();
+builder.Services.Configure<RabbitMqOptions>(
+	builder.Configuration.GetSection(RabbitMqOptions.SectionName));
+builder.Services.AddSingleton<IDocumentQueuePublisher, RabbitMqDocumentQueuePublisher>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {

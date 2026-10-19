@@ -8,5 +8,6 @@
     </PackageReference>
     <ProjectReference Include="..\DocumentManagementSystem.Application\DocumentManagementSystem.Application.csproj" />
     <ProjectReference Include="..\DocumentManagementSystem.Persistence\DocumentManagementSystem.Persistence.csproj" />
+    <ProjectReference Include="..\DocumentManagementSystem.Messaging\DocumentManagementSystem.Messaging.csproj" />
   </ItemGroup>
 </Project>
