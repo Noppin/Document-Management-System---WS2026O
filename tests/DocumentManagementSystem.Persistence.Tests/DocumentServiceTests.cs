@@ -46,6 +46,27 @@ public sealed class DocumentServiceTests
     }
 
     [Fact]
+    public async Task UploadAsync_QueuePublishFails_ThrowsDocumentQueueException()
+    {
+        var service = CreateService(new ThrowingDocumentQueuePublisher());
+
+        await Assert.ThrowsAsync<DocumentQueueException>(
+            () => service.UploadAsync(CreateUploadRequest("invoice.pdf")));
+    }
+
+    [Fact]
+    public async Task UploadAsync_QueuePublishFails_DoesNotPersistDocument()
+    {
+        var service = CreateService(new ThrowingDocumentQueuePublisher());
+
+        await Assert.ThrowsAsync<DocumentQueueException>(
+            () => service.UploadAsync(CreateUploadRequest("invoice.pdf")));
+
+        using var context = _database.CreateContext();
+        Assert.Empty(new DocumentRepository(context).GetAll());
+    }
+
+    [Fact]
     public async Task UploadAsync_EmptyFile_Throws()
     {
         var service = CreateService();
@@ -180,5 +201,15 @@ public sealed class DocumentServiceTests
             Messages.Add(message);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class ThrowingDocumentQueuePublisher : IDocumentQueuePublisher
+    {
+        public Task PublishAsync(
+            DocumentUploadedMessage message,
+            CancellationToken cancellationToken = default) =>
+            throw new DocumentQueueException(
+                $"Could not enqueue document {message.DocumentId} for OCR processing.",
+                new InvalidOperationException("RabbitMQ is unavailable."));
     }
 }

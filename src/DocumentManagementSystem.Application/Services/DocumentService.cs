@@ -33,15 +33,23 @@ public sealed class DocumentService(
 
         documents.Add(document);
 
-        await queuePublisher.PublishAsync(
-            new DocumentUploadedMessage(
-                MessageId: Guid.NewGuid(),
-                DocumentId: document.Id,
-                FileName: document.FileName,
-                ContentType: document.ContentType,
-                FileSize: document.FileSize,
-                UploadedAt: document.CreatedAt),
-            cancellationToken);
+        try
+        {
+            await queuePublisher.PublishAsync(
+                new DocumentUploadedMessage(
+                    MessageId: Guid.NewGuid(),
+                    DocumentId: document.Id,
+                    FileName: document.FileName,
+                    ContentType: document.ContentType,
+                    FileSize: document.FileSize,
+                    UploadedAt: document.CreatedAt),
+                cancellationToken);
+        }
+        catch (DocumentQueueException)
+        {
+            documents.Delete(document.Id);
+            throw;
+        }
 
         return mapper.Map<DocumentResponse>(document);
     }
