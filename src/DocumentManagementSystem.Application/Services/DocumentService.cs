@@ -4,6 +4,7 @@ using DocumentManagementSystem.Domain.Entities;
 using DocumentManagementSystem.Messaging;
 using DocumentManagementSystem.Persistence;
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 
 namespace DocumentManagementSystem.Application.Services;
 
@@ -11,7 +12,8 @@ public sealed class DocumentService(
     IDocumentRepository documents,
     IMapper mapper,
     IValidator<UploadDocumentRequest> validator,
-    IDocumentQueuePublisher queuePublisher) : IDocumentService
+    IDocumentQueuePublisher queuePublisher,
+    ILogger<DocumentService> logger) : IDocumentService
 {
     public async Task<DocumentResponse> UploadAsync(
         UploadDocumentRequest request,
@@ -33,6 +35,12 @@ public sealed class DocumentService(
 
         documents.Add(document);
 
+        logger.LogInformation(
+            "Persisted uploaded document {DocumentId} ({FileName}, {FileSize} bytes) for OCR processing",
+            document.Id,
+            document.FileName,
+            document.FileSize);
+
         try
         {
             await queuePublisher.PublishAsync(
@@ -48,6 +56,11 @@ public sealed class DocumentService(
         catch (DocumentQueueException)
         {
             documents.Delete(document.Id);
+
+            logger.LogWarning(
+                "Removed document {DocumentId} because the OCR queue publish failed",
+                document.Id);
+
             throw;
         }
 
