@@ -5,6 +5,7 @@ using DocumentManagementSystem.Domain.Entities;
 using DocumentManagementSystem.Messaging;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DocumentManagementSystem.Persistence.Tests;
 
@@ -156,7 +157,8 @@ public sealed class DocumentServiceTests
 
     private DocumentService CreateService(IDocumentQueuePublisher? queuePublisher = null) =>
         new(new DocumentRepository(_database.CreateContext()), TestMapper.Create(),
-            new UploadDocumentRequestValidator(), queuePublisher ?? new RecordingDocumentQueuePublisher());
+            new UploadDocumentRequestValidator(), queuePublisher ?? new RecordingDocumentQueuePublisher(),
+            NullLogger<DocumentService>.Instance);
 
     private Guid SeedDocument(string fileName, DateTimeOffset? createdAt = null)
     {

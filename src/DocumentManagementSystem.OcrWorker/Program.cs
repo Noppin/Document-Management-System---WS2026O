@@ -9,4 +9,9 @@ builder.Services.AddSingleton<OcrMessageProcessor>();
 builder.Services.AddHostedService<OcrQueueWorker>();
 
 var host = builder.Build();
+
+var logger = host.Services.GetRequiredService<ILoggerFactory>()
+    .CreateLogger("DocumentManagementSystem.OcrWorker");
+logger.LogInformation("OCR worker starting");
+
 host.Run();

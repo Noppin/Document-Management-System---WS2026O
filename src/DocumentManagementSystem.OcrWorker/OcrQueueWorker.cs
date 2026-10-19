@@ -63,9 +63,10 @@ public sealed class OcrQueueWorker(
         var consumer = new AsyncEventingBasicConsumer(channel);
         consumer.ReceivedAsync += async (_, eventArgs) =>
         {
+            DocumentUploadedMessage? message = null;
             try
             {
-                processor.Process(eventArgs.Body);
+                message = processor.Process(eventArgs.Body);
                 await channel.BasicAckAsync(eventArgs.DeliveryTag, false, stoppingToken);
             }
             catch (OcrMessageProcessingException exception)
@@ -84,7 +85,8 @@ public sealed class OcrQueueWorker(
             {
                 logger.LogError(
                     exception,
-                    "OCR worker failed while handling message {MessageId}; message will be requeued",
+                    "OCR worker failed while handling document {DocumentId} (message {MessageId}); message will be requeued",
+                    message?.DocumentId,
                     eventArgs.BasicProperties.MessageId);
                 await channel.BasicNackAsync(
                     eventArgs.DeliveryTag,
