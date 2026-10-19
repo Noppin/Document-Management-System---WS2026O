@@ -14,6 +14,7 @@ public sealed class DocumentsController(IDocumentService service) : ControllerBa
     [Consumes("multipart/form-data")]
     [ProducesResponseType<DocumentResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<ActionResult<DocumentResponse>> Upload(
         [FromForm] UploadDocumentRequest request,
         CancellationToken cancellationToken)
