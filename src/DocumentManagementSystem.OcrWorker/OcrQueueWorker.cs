@@ -51,13 +51,7 @@ public sealed class OcrQueueWorker(
         await using var connection = await factory.CreateConnectionAsync(stoppingToken);
         await using var channel = await connection.CreateChannelAsync(cancellationToken: stoppingToken);
 
-        await channel.QueueDeclareAsync(
-            queue: _options.QueueName,
-            durable: true,
-            exclusive: false,
-            autoDelete: false,
-            arguments: null,
-            cancellationToken: stoppingToken);
+        await RabbitMqTopology.DeclareConsumerTopologyAsync(channel, _options, stoppingToken);
         await channel.BasicQosAsync(0, 1, false, stoppingToken);
 
         var consumer = new AsyncEventingBasicConsumer(channel);

@@ -6,4 +6,9 @@ public sealed record DocumentUploadedMessage(
     string FileName,
     string ContentType,
     long FileSize,
-    DateTimeOffset UploadedAt);
+    DateTimeOffset UploadedAt)
+{
+    public const int CurrentSchemaVersion = 1;
+
+    public int SchemaVersion { get; init; } = CurrentSchemaVersion;
+}

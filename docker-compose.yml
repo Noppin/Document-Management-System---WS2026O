@@ -40,6 +40,10 @@ services:
       RabbitMq__UserName: dms
       RabbitMq__Password: dms
       RabbitMq__QueueName: dms.document.ocr
+      RabbitMq__ExchangeName: dms.events
+      RabbitMq__RoutingKey: document.uploaded
+      RabbitMq__DeadLetterExchangeName: dms.events.dlx
+      RabbitMq__DeadLetterQueueName: dms.document.ocr.dead
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,6 +60,10 @@ services:
       RabbitMq__UserName: dms
       RabbitMq__Password: dms
       RabbitMq__QueueName: dms.document.ocr
+      RabbitMq__ExchangeName: dms.events
+      RabbitMq__RoutingKey: document.uploaded
+      RabbitMq__DeadLetterExchangeName: dms.events.dlx
+      RabbitMq__DeadLetterQueueName: dms.document.ocr.dead
     depends_on:
       rabbitmq:
         condition: service_healthy
