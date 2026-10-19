@@ -46,6 +46,21 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  ocr-worker:
+    build:
+      context: .
+      dockerfile: src/DocumentManagementSystem.OcrWorker/Dockerfile
+    environment:
+      RabbitMq__HostName: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__UserName: dms
+      RabbitMq__Password: dms
+      RabbitMq__QueueName: dms.document.ocr
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend
