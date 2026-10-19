@@ -1,14 +1,26 @@
 using DocumentManagementSystem.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DocumentManagementSystem.Persistence;
 
-public sealed class CollectionRepository(DocumentManagementDbContext dbContext) : ICollectionRepository
+public sealed class CollectionRepository(
+    DocumentManagementDbContext dbContext,
+    ILogger<CollectionRepository>? logger = null) : ICollectionRepository
 {
+    private readonly ILogger<CollectionRepository> _logger =
+        logger ?? NullLogger<CollectionRepository>.Instance;
+
     public Collection Add(Collection collection)
     {
         dbContext.Collections.Add(collection);
         dbContext.SaveChanges();
+
+        _logger.LogInformation(
+            "Stored collection {CollectionId} ({CollectionName}) in the database",
+            collection.Id,
+            collection.Name);
         return collection;
     }
 
@@ -39,6 +51,11 @@ public sealed class CollectionRepository(DocumentManagementDbContext dbContext) 
             DocumentId = documentId
         });
         dbContext.SaveChanges();
+
+        _logger.LogInformation(
+            "Linked document {DocumentId} to collection {CollectionId} in the database",
+            documentId,
+            collectionId);
         return true;
     }
 
@@ -51,6 +68,11 @@ public sealed class CollectionRepository(DocumentManagementDbContext dbContext) 
 
         dbContext.CollectionDocuments.Remove(link);
         dbContext.SaveChanges();
+
+        _logger.LogInformation(
+            "Unlinked document {DocumentId} from collection {CollectionId} in the database",
+            documentId,
+            collectionId);
         return true;
     }
 }
