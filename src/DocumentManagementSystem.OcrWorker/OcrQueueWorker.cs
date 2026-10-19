@@ -1,4 +1,3 @@
-using System.Text.Json;
 using DocumentManagementSystem.Messaging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
@@ -8,11 +7,34 @@ namespace DocumentManagementSystem.OcrWorker;
 
 public sealed class OcrQueueWorker(
     IOptions<RabbitMqOptions> options,
+    OcrMessageProcessor processor,
     ILogger<OcrQueueWorker> logger) : BackgroundService
 {
     private readonly RabbitMqOptions _options = options.Value;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await RunConsumerSessionAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception exception)
+            {
+                logger.LogError(
+                    exception,
+                    "OCR worker lost its RabbitMQ consumer session. Retrying in 5 seconds");
+                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+            }
+        }
+    }
+
+    private async Task RunConsumerSessionAsync(CancellationToken stoppingToken)
     {
         var factory = new ConnectionFactory
         {
@@ -41,15 +63,35 @@ public sealed class OcrQueueWorker(
         var consumer = new AsyncEventingBasicConsumer(channel);
         consumer.ReceivedAsync += async (_, eventArgs) =>
         {
-            var message = JsonSerializer.Deserialize<DocumentUploadedMessage>(eventArgs.Body.ToArray())
-                ?? throw new InvalidOperationException("RabbitMQ delivered an empty OCR message.");
-
-            logger.LogInformation(
-                "OCR worker received document {DocumentId} ({FileName}) for later OCR processing",
-                message.DocumentId,
-                message.FileName);
-
-            await channel.BasicAckAsync(eventArgs.DeliveryTag, false, stoppingToken);
+            try
+            {
+                processor.Process(eventArgs.Body);
+                await channel.BasicAckAsync(eventArgs.DeliveryTag, false, stoppingToken);
+            }
+            catch (OcrMessageProcessingException exception)
+            {
+                logger.LogError(
+                    exception,
+                    "Rejecting invalid OCR queue message {MessageId}",
+                    eventArgs.BasicProperties.MessageId);
+                await channel.BasicNackAsync(
+                    eventArgs.DeliveryTag,
+                    multiple: false,
+                    requeue: false,
+                    cancellationToken: stoppingToken);
+            }
+            catch (Exception exception)
+            {
+                logger.LogError(
+                    exception,
+                    "OCR worker failed while handling message {MessageId}; message will be requeued",
+                    eventArgs.BasicProperties.MessageId);
+                await channel.BasicNackAsync(
+                    eventArgs.DeliveryTag,
+                    multiple: false,
+                    requeue: true,
+                    cancellationToken: stoppingToken);
+            }
         };
 
         await channel.BasicConsumeAsync(

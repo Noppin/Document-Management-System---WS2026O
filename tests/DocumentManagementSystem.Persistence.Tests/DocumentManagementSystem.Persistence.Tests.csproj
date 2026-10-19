@@ -20,6 +20,7 @@
     <ProjectReference Include="..\..\src\DocumentManagementSystem.Api\DocumentManagementSystem.Api.csproj" />
     <ProjectReference Include="..\..\src\DocumentManagementSystem.Application\DocumentManagementSystem.Application.csproj" />
     <ProjectReference Include="..\..\src\DocumentManagementSystem.Persistence\DocumentManagementSystem.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\DocumentManagementSystem.OcrWorker\DocumentManagementSystem.OcrWorker.csproj" />
   </ItemGroup>
 
   <ItemGroup>
