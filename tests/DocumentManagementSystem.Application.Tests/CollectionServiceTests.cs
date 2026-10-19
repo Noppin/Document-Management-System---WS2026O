@@ -1,8 +1,11 @@
 using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Application.Services;
 using DocumentManagementSystem.Domain.Entities;
+using DocumentManagementSystem.Persistence;
+using DocumentManagementSystem.TestHelpers;
+using Microsoft.Extensions.Logging.Abstractions;
 
-namespace DocumentManagementSystem.Persistence.Tests;
+namespace DocumentManagementSystem.Application.Tests;
 
 public sealed class CollectionServiceTests
 {
@@ -117,7 +120,8 @@ public sealed class CollectionServiceTests
         new(
             new CollectionRepository(_database.CreateContext()),
             new DocumentRepository(_database.CreateContext()),
-            TestMapper.Create());
+            TestMapper.Create(),
+            NullLogger<CollectionService>.Instance);
 
     private Guid SeedCollection(string name)
     {

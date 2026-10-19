@@ -3,7 +3,7 @@ using DocumentManagementSystem.Messaging;
 using DocumentManagementSystem.OcrWorker;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace DocumentManagementSystem.Persistence.Tests;
+namespace DocumentManagementSystem.OcrWorker.Tests;
 
 public sealed class OcrMessageProcessorTests
 {
@@ -32,5 +32,24 @@ public sealed class OcrMessageProcessorTests
         var processor = new OcrMessageProcessor(NullLogger<OcrMessageProcessor>.Instance);
 
         Assert.Throws<OcrMessageProcessingException>(() => processor.Process("not-json"u8.ToArray()));
+    }
+
+    [Fact]
+    public void Process_UnsupportedSchemaVersion_ThrowsLayerSpecificException()
+    {
+        var message = new DocumentUploadedMessage(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "hello.pdf",
+            "application/pdf",
+            42,
+            DateTimeOffset.UtcNow)
+        {
+            SchemaVersion = DocumentUploadedMessage.CurrentSchemaVersion + 1
+        };
+        var body = JsonSerializer.SerializeToUtf8Bytes(message);
+        var processor = new OcrMessageProcessor(NullLogger<OcrMessageProcessor>.Instance);
+
+        Assert.Throws<OcrMessageProcessingException>(() => processor.Process(body));
     }
 }

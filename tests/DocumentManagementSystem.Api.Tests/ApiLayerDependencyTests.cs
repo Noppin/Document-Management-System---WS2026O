@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using DocumentManagementSystem.Api.Controllers;
 
-namespace DocumentManagementSystem.Persistence.Tests;
+namespace DocumentManagementSystem.Api.Tests;
 
 public sealed class ApiLayerDependencyTests
 {
