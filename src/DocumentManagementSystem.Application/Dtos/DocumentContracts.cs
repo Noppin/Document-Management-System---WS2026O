@@ -1,3 +1,4 @@
+using DocumentManagementSystem.Domain.Entities;
 using Microsoft.AspNetCore.Http;
 
 namespace DocumentManagementSystem.Application.Dtos;
@@ -12,6 +13,7 @@ public sealed record DocumentResponse(
     string FileName,
     string ContentType,
     long FileSize,
+    DocumentStatus Status,
     DateTimeOffset CreatedAt);
 
 public sealed record DocumentDownloadResponse(

@@ -65,7 +65,7 @@ fetch_token() {
 
 echo "Compose services"
 running="$(docker compose ps --status running --services 2>/dev/null)"
-for service in postgres api frontend keycloak; do
+for service in postgres rabbitmq api ocr-worker frontend keycloak; do
 	if printf '%s\n' "$running" | grep -qx "$service"; then
 		ok "$service is running"
 	else

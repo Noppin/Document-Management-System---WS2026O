@@ -15,6 +15,7 @@ public static class DependencyInjection
         services.AddScoped<ICollectionService, CollectionService>();
         services.AddAutoMapper(configuration => configuration.AddProfile<MappingProfile>());
         services.AddScoped<IValidator<UploadDocumentRequest>, UploadDocumentRequestValidator>();
+        services.AddScoped<IValidator<CreateCollectionRequest>, CreateCollectionRequestValidator>();
         return services;
     }
 }

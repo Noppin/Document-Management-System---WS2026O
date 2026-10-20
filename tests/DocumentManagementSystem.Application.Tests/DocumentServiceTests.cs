@@ -2,10 +2,14 @@ using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Application.Services;
 using DocumentManagementSystem.Application.Validation;
 using DocumentManagementSystem.Domain.Entities;
+using DocumentManagementSystem.Messaging;
+using DocumentManagementSystem.Persistence;
+using DocumentManagementSystem.TestHelpers;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging.Abstractions;
 
-namespace DocumentManagementSystem.Persistence.Tests;
+namespace DocumentManagementSystem.Application.Tests;
 
 public sealed class DocumentServiceTests
 {
@@ -25,6 +29,44 @@ public sealed class DocumentServiceTests
 
         using var context = _database.CreateContext();
         Assert.Single(new DocumentRepository(context).GetAll());
+    }
+
+
+    [Fact]
+    public async Task UploadAsync_ValidPdf_PublishesOcrQueueMessage()
+    {
+        var queue = new RecordingDocumentQueuePublisher();
+        var service = CreateService(queue);
+
+        var response = await service.UploadAsync(CreateUploadRequest("invoice.pdf"));
+
+        var message = Assert.Single(queue.Messages);
+        Assert.Equal(response.Id, message.DocumentId);
+        Assert.Equal("invoice.pdf", message.FileName);
+        Assert.Equal("application/pdf", message.ContentType);
+        Assert.Equal(8, message.FileSize);
+        Assert.NotEqual(Guid.Empty, message.MessageId);
+    }
+
+    [Fact]
+    public async Task UploadAsync_QueuePublishFails_ThrowsDocumentQueueException()
+    {
+        var service = CreateService(new ThrowingDocumentQueuePublisher());
+
+        await Assert.ThrowsAsync<DocumentQueueException>(
+            () => service.UploadAsync(CreateUploadRequest("invoice.pdf")));
+    }
+
+    [Fact]
+    public async Task UploadAsync_QueuePublishFails_DoesNotPersistDocument()
+    {
+        var service = CreateService(new ThrowingDocumentQueuePublisher());
+
+        await Assert.ThrowsAsync<DocumentQueueException>(
+            () => service.UploadAsync(CreateUploadRequest("invoice.pdf")));
+
+        using var context = _database.CreateContext();
+        Assert.Empty(new DocumentRepository(context).GetAll());
     }
 
     [Fact]
@@ -115,9 +157,32 @@ public sealed class DocumentServiceTests
         Assert.False(CreateService().Delete(Guid.NewGuid()));
     }
 
-    private DocumentService CreateService() =>
+    [Fact]
+    public void GetDownload_ExistingDocument_ReturnsStoredContent()
+    {
+        var service = CreateService();
+        var id = SeedDocument("invoice.pdf");
+
+        var download = service.GetDownload(id);
+
+        Assert.NotNull(download);
+        Assert.Equal("application/pdf", download!.ContentType);
+        Assert.Equal("invoice.pdf", download.FileName);
+        Assert.Equal("%PDF-1.4"u8.ToArray(), download.Content);
+    }
+
+    [Fact]
+    public void GetDownload_UnknownDocument_ReturnsNull()
+    {
+        var service = CreateService();
+
+        Assert.Null(service.GetDownload(Guid.NewGuid()));
+    }
+
+    private DocumentService CreateService(IDocumentQueuePublisher? queuePublisher = null) =>
         new(new DocumentRepository(_database.CreateContext()), TestMapper.Create(),
-            new UploadDocumentRequestValidator());
+            new UploadDocumentRequestValidator(), queuePublisher ?? new RecordingDocumentQueuePublisher(),
+            NullLogger<DocumentService>.Instance);
 
     private Guid SeedDocument(string fileName, DateTimeOffset? createdAt = null)
     {
@@ -149,5 +214,28 @@ public sealed class DocumentServiceTests
                 ContentType = contentType
             }
         };
+    }
+
+    private sealed class RecordingDocumentQueuePublisher : IDocumentQueuePublisher
+    {
+        public List<DocumentUploadedMessage> Messages { get; } = [];
+
+        public Task PublishAsync(
+            DocumentUploadedMessage message,
+            CancellationToken cancellationToken = default)
+        {
+            Messages.Add(message);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ThrowingDocumentQueuePublisher : IDocumentQueuePublisher
+    {
+        public Task PublishAsync(
+            DocumentUploadedMessage message,
+            CancellationToken cancellationToken = default) =>
+            throw new DocumentQueueException(
+                $"Could not enqueue document {message.DocumentId} for OCR processing.",
+                new InvalidOperationException("RabbitMQ is unavailable."));
     }
 }

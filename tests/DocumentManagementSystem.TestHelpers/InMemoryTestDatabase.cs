@@ -1,6 +1,7 @@
+using DocumentManagementSystem.Persistence;
 using Microsoft.EntityFrameworkCore;
 
-namespace DocumentManagementSystem.Persistence.Tests;
+namespace DocumentManagementSystem.TestHelpers;
 
 public sealed class InMemoryTestDatabase
 {

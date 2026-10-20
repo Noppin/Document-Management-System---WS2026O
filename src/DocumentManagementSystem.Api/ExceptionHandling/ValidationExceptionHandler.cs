@@ -4,7 +4,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace DocumentManagementSystem.Api.ExceptionHandling;
 
-public sealed class ValidationExceptionHandler : IExceptionHandler
+public sealed class ValidationExceptionHandler(ILogger<ValidationExceptionHandler> logger)
+    : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext,
@@ -15,6 +16,11 @@ public sealed class ValidationExceptionHandler : IExceptionHandler
         {
             return false;
         }
+
+        logger.LogWarning(
+            "Rejected request with {ValidationErrorCount} validation errors: {ValidationErrors}",
+            validationException.Errors.Count(),
+            string.Join("; ", validationException.Errors.Select(error => error.ErrorMessage)));
 
         var problemDetails = new ProblemDetails
         {

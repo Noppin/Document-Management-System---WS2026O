@@ -1,12 +1,19 @@
 using AutoMapper;
 using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Domain.Entities;
+using DocumentManagementSystem.Messaging;
 using DocumentManagementSystem.Persistence;
 using FluentValidation;
+using Microsoft.Extensions.Logging;
 
 namespace DocumentManagementSystem.Application.Services;
 
-public sealed class DocumentService(IDocumentRepository documents, IMapper mapper, IValidator<UploadDocumentRequest> validator) : IDocumentService
+public sealed class DocumentService(
+    IDocumentRepository documents,
+    IMapper mapper,
+    IValidator<UploadDocumentRequest> validator,
+    IDocumentQueuePublisher queuePublisher,
+    ILogger<DocumentService> logger) : IDocumentService
 {
     public async Task<DocumentResponse> UploadAsync(
         UploadDocumentRequest request,
@@ -23,10 +30,41 @@ public sealed class DocumentService(IDocumentRepository documents, IMapper mappe
             FileName = Path.GetFileName(request.File.FileName),
             ContentType = request.File.ContentType,
             FileSize = request.File.Length,
-            Content = content
+            Content = content,
+            Status = DocumentStatus.Queued
         };
 
         documents.Add(document);
+
+        logger.LogInformation(
+            "Persisted uploaded document {DocumentId} ({FileName}, {FileSize} bytes) for OCR processing",
+            document.Id,
+            document.FileName,
+            document.FileSize);
+
+        try
+        {
+            await queuePublisher.PublishAsync(
+                new DocumentUploadedMessage(
+                    MessageId: Guid.NewGuid(),
+                    DocumentId: document.Id,
+                    FileName: document.FileName,
+                    ContentType: document.ContentType,
+                    FileSize: document.FileSize,
+                    UploadedAt: document.CreatedAt),
+                cancellationToken);
+        }
+        catch (DocumentQueueException)
+        {
+            documents.Delete(document.Id);
+
+            logger.LogWarning(
+                "Removed document {DocumentId} because the OCR queue publish failed",
+                document.Id);
+
+            throw;
+        }
+
         return mapper.Map<DocumentResponse>(document);
     }
 

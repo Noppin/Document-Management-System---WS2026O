@@ -2,7 +2,7 @@ using AutoMapper;
 using DocumentManagementSystem.Application.Mapping;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DocumentManagementSystem.Persistence.Tests;
+namespace DocumentManagementSystem.TestHelpers;
 
 public static class TestMapper
 {

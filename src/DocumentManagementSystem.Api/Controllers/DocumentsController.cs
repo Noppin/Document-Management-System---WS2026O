@@ -2,22 +2,30 @@ using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace DocumentManagementSystem.Api.Controllers;
 
 [ApiController]
 [Authorize]
 [Route("documents")]
-public sealed class DocumentsController(IDocumentService service) : ControllerBase
+public sealed class DocumentsController(IDocumentService service, ILogger<DocumentsController> logger)
+    : ControllerBase
 {
     [HttpPost]
     [Consumes("multipart/form-data")]
     [ProducesResponseType<DocumentResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<ActionResult<DocumentResponse>> Upload(
         [FromForm] UploadDocumentRequest request,
         CancellationToken cancellationToken)
     {
+        logger.LogInformation(
+            "Received upload request for {FileName} ({FileSize} bytes)",
+            request.File.FileName,
+            request.File.Length);
+
         var result = await service.UploadAsync(request, cancellationToken);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
@@ -44,5 +52,10 @@ public sealed class DocumentsController(IDocumentService service) : ControllerBa
     }
 
     [HttpDelete("{id:guid}")]
-    public IActionResult Delete(Guid id) => service.Delete(id) ? NoContent() : NotFound();
+    public IActionResult Delete(Guid id)
+    {
+        logger.LogInformation("Received delete request for document {DocumentId}", id);
+
+        return service.Delete(id) ? NoContent() : NotFound();
+    }
 }
