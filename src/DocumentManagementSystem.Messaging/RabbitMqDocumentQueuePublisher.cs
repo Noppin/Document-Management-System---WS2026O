@@ -8,9 +8,11 @@ namespace DocumentManagementSystem.Messaging;
 
 public sealed class RabbitMqDocumentQueuePublisher(
     IOptions<RabbitMqOptions> options,
-    ILogger<RabbitMqDocumentQueuePublisher> logger) : IDocumentQueuePublisher, IAsyncDisposable
+    ILogger<RabbitMqDocumentQueuePublisher> logger,
+    IConnectionFactory? connectionFactory = null) : IDocumentQueuePublisher, IAsyncDisposable
 {
     private readonly RabbitMqOptions _options = options.Value;
+    private readonly IConnectionFactory? _connectionFactory = connectionFactory;
     private readonly SemaphoreSlim _channelLock = new(1, 1);
     private IConnection? _connection;
     private IChannel? _channel;
@@ -87,17 +89,7 @@ public sealed class RabbitMqDocumentQueuePublisher(
             _connection = null;
         }
 
-        var factory = new ConnectionFactory
-        {
-            HostName = _options.HostName,
-            Port = _options.Port,
-            UserName = _options.UserName,
-            Password = _options.Password,
-            AutomaticRecoveryEnabled = true,
-            TopologyRecoveryEnabled = true,
-            NetworkRecoveryInterval = TimeSpan.FromSeconds(5),
-            ClientProvidedName = "dms-api-publisher"
-        };
+        var factory = _connectionFactory ?? CreateConnectionFactory();
 
         _connection = await factory.CreateConnectionAsync(cancellationToken);
         _channel = await _connection.CreateChannelAsync(
@@ -122,6 +114,21 @@ public sealed class RabbitMqDocumentQueuePublisher(
             eventArgs.RoutingKey);
 
         return Task.CompletedTask;
+    }
+
+    private IConnectionFactory CreateConnectionFactory()
+    {
+        return new ConnectionFactory
+        {
+            HostName = _options.HostName,
+            Port = _options.Port,
+            UserName = _options.UserName,
+            Password = _options.Password,
+            AutomaticRecoveryEnabled = true,
+            TopologyRecoveryEnabled = true,
+            NetworkRecoveryInterval = TimeSpan.FromSeconds(5),
+            ClientProvidedName = "dms-api-publisher"
+        };
     }
 
     public async ValueTask DisposeAsync()

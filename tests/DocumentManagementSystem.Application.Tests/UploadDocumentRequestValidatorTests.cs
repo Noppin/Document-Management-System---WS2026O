@@ -74,6 +74,27 @@ public sealed class UploadDocumentRequestValidatorTests
     }
 
     [Fact]
+    public async Task Validate_FileNameAboveDatabaseLimit_Fails()
+    {
+        var fileName = new string('a', 256) + ".pdf";
+
+        var result = await _validator.TestValidateAsync(CreateRequest(fileName: fileName));
+
+        result.ShouldHaveValidationErrorFor(upload => upload.File.FileName)
+            .WithErrorMessage("The file name must use at most 255 characters.");
+    }
+
+    [Fact]
+    public async Task Validate_FileNameAtDatabaseLimit_IsAccepted()
+    {
+        var fileName = new string('a', 251) + ".pdf";
+
+        var result = await _validator.TestValidateAsync(CreateRequest(fileName: fileName));
+
+        result.ShouldNotHaveValidationErrorFor(upload => upload.File.FileName);
+    }
+
+    [Fact]
     public async Task Validate_WrongContentType_Fails()
     {
         var result = await _validator.TestValidateAsync(CreateRequest(contentType: "text/plain"));

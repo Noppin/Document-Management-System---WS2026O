@@ -1,8 +1,10 @@
 using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Application.Services;
+using DocumentManagementSystem.Application.Validation;
 using DocumentManagementSystem.Domain.Entities;
 using DocumentManagementSystem.Persistence;
 using DocumentManagementSystem.TestHelpers;
+using FluentValidation;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DocumentManagementSystem.Application.Tests;
@@ -24,10 +26,52 @@ public sealed class CollectionServiceTests
     [Fact]
     public void Create_EmptyName_Throws()
     {
-        var exception = Assert.Throws<ArgumentException>(
+        var exception = Assert.Throws<ValidationException>(
             () => CreateService().Create(new CreateCollectionRequest { Name = "   " }));
 
-        Assert.Equal("request", exception.ParamName);
+        Assert.Contains(exception.Errors, error => error.ErrorMessage == "A collection name is required.");
+    }
+
+    [Fact]
+    public void Create_TooShortName_Throws()
+    {
+        var exception = Assert.Throws<ValidationException>(
+            () => CreateService().Create(new CreateCollectionRequest { Name = "A" }));
+
+        Assert.Contains(exception.Errors,
+            error => error.ErrorMessage == "The collection name must use at least 2 characters.");
+    }
+
+    [Fact]
+    public void Create_TooLongName_Throws()
+    {
+        var exception = Assert.Throws<ValidationException>(
+            () => CreateService().Create(new CreateCollectionRequest { Name = new string('x', 201) }));
+
+        Assert.Contains(exception.Errors,
+            error => error.ErrorMessage == "The collection name must use at most 200 characters.");
+    }
+
+    [Fact]
+    public void Create_DuplicateName_Throws()
+    {
+        CreateService().Create(new CreateCollectionRequest { Name = "Invoices" });
+
+        var exception = Assert.Throws<ArgumentException>(
+            () => CreateService().Create(new CreateCollectionRequest { Name = "Invoices" }));
+
+        Assert.Contains("already exists", exception.Message);
+    }
+
+    [Fact]
+    public void Create_DuplicateNameAfterTrim_Throws()
+    {
+        CreateService().Create(new CreateCollectionRequest { Name = "Invoices" });
+
+        var exception = Assert.Throws<ArgumentException>(
+            () => CreateService().Create(new CreateCollectionRequest { Name = "  Invoices  " }));
+
+        Assert.Contains("already exists", exception.Message);
     }
 
     [Fact]
@@ -120,6 +164,7 @@ public sealed class CollectionServiceTests
         new(
             new CollectionRepository(_database.CreateContext()),
             new DocumentRepository(_database.CreateContext()),
+            new CreateCollectionRequestValidator(),
             TestMapper.Create(),
             NullLogger<CollectionService>.Instance);
 

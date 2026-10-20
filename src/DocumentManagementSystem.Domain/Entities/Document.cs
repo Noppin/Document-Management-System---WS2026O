@@ -9,7 +9,7 @@ public sealed class Document
     public required byte[] Content { get; init; }
     public string? Title { get; init; }
     public string? Description { get; init; }
-    public int Status { get; init; }
+    public DocumentStatus Status { get; init; }
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; init; } = DateTimeOffset.UtcNow;
     public ICollection<CollectionDocument> CollectionDocuments { get; init; } = new List<CollectionDocument>();
