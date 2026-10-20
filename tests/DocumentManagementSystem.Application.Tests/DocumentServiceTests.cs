@@ -157,6 +157,28 @@ public sealed class DocumentServiceTests
         Assert.False(CreateService().Delete(Guid.NewGuid()));
     }
 
+    [Fact]
+    public void GetDownload_ExistingDocument_ReturnsStoredContent()
+    {
+        var service = CreateService();
+        var id = SeedDocument("invoice.pdf");
+
+        var download = service.GetDownload(id);
+
+        Assert.NotNull(download);
+        Assert.Equal("application/pdf", download!.ContentType);
+        Assert.Equal("invoice.pdf", download.FileName);
+        Assert.Equal("%PDF-1.4"u8.ToArray(), download.Content);
+    }
+
+    [Fact]
+    public void GetDownload_UnknownDocument_ReturnsNull()
+    {
+        var service = CreateService();
+
+        Assert.Null(service.GetDownload(Guid.NewGuid()));
+    }
+
     private DocumentService CreateService(IDocumentQueuePublisher? queuePublisher = null) =>
         new(new DocumentRepository(_database.CreateContext()), TestMapper.Create(),
             new UploadDocumentRequestValidator(), queuePublisher ?? new RecordingDocumentQueuePublisher(),

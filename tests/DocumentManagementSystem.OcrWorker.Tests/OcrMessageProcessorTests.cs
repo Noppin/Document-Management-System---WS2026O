@@ -52,4 +52,20 @@ public sealed class OcrMessageProcessorTests
 
         Assert.Throws<OcrMessageProcessingException>(() => processor.Process(body));
     }
+
+    [Fact]
+    public void Process_MissingDocumentId_ThrowsLayerSpecificException()
+    {
+        var message = new DocumentUploadedMessage(
+            Guid.NewGuid(),
+            Guid.Empty,
+            "hello.pdf",
+            "application/pdf",
+            42,
+            DateTimeOffset.UtcNow);
+        var body = JsonSerializer.SerializeToUtf8Bytes(message);
+        var processor = new OcrMessageProcessor(NullLogger<OcrMessageProcessor>.Instance);
+
+        Assert.Throws<OcrMessageProcessingException>(() => processor.Process(body));
+    }
 }

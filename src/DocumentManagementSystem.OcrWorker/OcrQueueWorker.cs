@@ -8,7 +8,8 @@ namespace DocumentManagementSystem.OcrWorker;
 public sealed class OcrQueueWorker(
     IOptions<RabbitMqOptions> options,
     OcrMessageProcessor processor,
-    ILogger<OcrQueueWorker> logger) : BackgroundService
+    ILogger<OcrQueueWorker> logger,
+    IConnectionFactory? connectionFactory = null) : BackgroundService
 {
     private readonly RabbitMqOptions _options = options.Value;
 
@@ -36,7 +37,7 @@ public sealed class OcrQueueWorker(
 
     private async Task RunConsumerSessionAsync(CancellationToken stoppingToken)
     {
-        var factory = new ConnectionFactory
+        var factory = connectionFactory ?? new ConnectionFactory
         {
             HostName = _options.HostName,
             Port = _options.Port,
