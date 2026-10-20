@@ -26,9 +26,12 @@ dotnet test DocumentManagementSystem.sln
 `dotnet test` runs the unit tests of every layer. They are split by project:
 `tests/DocumentManagementSystem.Application.Tests`,
 `tests/DocumentManagementSystem.Persistence.Tests`,
-`tests/DocumentManagementSystem.Api.Tests` and
-`tests/DocumentManagementSystem.OcrWorker.Tests` run against an in-memory
-database, shared test fixtures live in `tests/DocumentManagementSystem.TestHelpers`.
+`tests/DocumentManagementSystem.Api.Tests`,
+`tests/DocumentManagementSystem.Messaging.Tests` and
+`tests/DocumentManagementSystem.OcrWorker.Tests`; shared test fixtures live in
+`tests/DocumentManagementSystem.TestHelpers`. The Application and Persistence
+tests run against an in-memory database, the other projects use mocked
+collaborators.
 
 ## Start with Docker Compose
 
@@ -151,9 +154,10 @@ The publisher and the consumer read the same `RabbitMq` configuration section.
 | Password      | `RabbitMq__Password`                        | `dms`                  |
 | Queue name    | `RabbitMq__QueueName`                       | `dms.document.ocr`     |
 
-The queue is durable, non-exclusive and not auto-declared as exclusive by the
-publisher; both the API and the worker declare it with the same name, so the
-order of container startup does not matter.
+The queue is durable and non-exclusive. The API declares the topic exchange and
+publishes with publisher confirmations; the worker declares the queue, its
+binding and the dead-letter exchange and queue (`dms.events.dlx`,
+`dms.document.ocr.dead`).
 
 RabbitMQ management UI: <http://localhost:15672> (`dms` / `dms`).
 
@@ -197,9 +201,6 @@ Uploads the bundled `http/sample.pdf` through the REST API, reads the created
 document ID from the response and then proves the whole pipeline: the API
 published the upload event and the OCR worker consumed the message, both
 matched by the document ID in the container logs. Exits non-zero on failure.
-
-See [docs/mid-term-review.md](docs/mid-term-review.md) for the mid-term review
-notes (Publisher → RabbitMQ → Consumer flow, exception handling, log locations).
 
 ## Frontend
 
