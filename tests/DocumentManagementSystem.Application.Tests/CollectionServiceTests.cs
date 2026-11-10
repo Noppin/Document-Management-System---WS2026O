@@ -160,10 +160,28 @@ public sealed class CollectionServiceTests
         Assert.False(CreateService().RemoveDocument(collectionId, Guid.NewGuid()));
     }
 
+    [Fact]
+    public void GetAll_AfterLinkChanges_ReturnsActualDocumentCounts()
+    {
+        var service = CreateService();
+        var collectionId = SeedCollection("Invoices");
+        var firstDocumentId = SeedDocument("first.pdf");
+        var secondDocumentId = SeedDocument("second.pdf");
+        Assert.True(service.AddDocument(collectionId, firstDocumentId));
+        Assert.True(service.AddDocument(collectionId, secondDocumentId));
+
+        Assert.Equal(2, Assert.Single(service.GetAll()).DocumentCount);
+        Assert.Equal(2, service.GetById(collectionId)!.Documents.Count);
+
+        Assert.True(service.RemoveDocument(collectionId, firstDocumentId));
+        Assert.Equal(1, Assert.Single(service.GetAll()).DocumentCount);
+        Assert.Equal(secondDocumentId, Assert.Single(service.GetById(collectionId)!.Documents).Id);
+    }
+
     private CollectionService CreateService() =>
         new(
-            new CollectionRepository(_database.CreateContext()),
-            new DocumentRepository(_database.CreateContext()),
+            new CollectionRepository(_database.CreateContext(), TestMapper.Create()),
+            new DocumentRepository(_database.CreateContext(), TestMapper.Create()),
             new CreateCollectionRequestValidator(),
             TestMapper.Create(),
             NullLogger<CollectionService>.Instance);
@@ -172,7 +190,7 @@ public sealed class CollectionServiceTests
     {
         var collection = new Collection { Name = name };
         using var context = _database.CreateContext();
-        new CollectionRepository(context).Add(collection);
+        new CollectionRepository(context, TestMapper.Create()).Add(collection);
         return collection.Id;
     }
 
@@ -187,7 +205,7 @@ public sealed class CollectionServiceTests
         };
 
         using var context = _database.CreateContext();
-        new DocumentRepository(context).Add(document);
+        new DocumentRepository(context, TestMapper.Create()).Add(document);
         return document.Id;
     }
 }

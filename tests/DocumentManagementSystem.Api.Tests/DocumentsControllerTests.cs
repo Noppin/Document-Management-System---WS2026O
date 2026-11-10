@@ -1,7 +1,6 @@
 using DocumentManagementSystem.Api.Controllers;
 using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Application.Services;
-using DocumentManagementSystem.Domain.Entities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -33,7 +32,7 @@ public sealed class DocumentsControllerTests
         "report.pdf",
         "application/pdf",
         3,
-        DocumentStatus.Queued,
+        DocumentResponseStatus.Queued,
         DateTimeOffset.UtcNow);
 
     [Fact]

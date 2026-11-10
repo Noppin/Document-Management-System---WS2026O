@@ -1,3 +1,4 @@
+using DocumentManagementSystem.Domain.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DocumentManagementSystem.Persistence.Tests;

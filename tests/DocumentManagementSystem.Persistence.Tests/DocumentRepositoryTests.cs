@@ -1,4 +1,5 @@
 using DocumentManagementSystem.Domain.Entities;
+using DocumentManagementSystem.Persistence.Entities;
 using DocumentManagementSystem.TestHelpers;
 
 namespace DocumentManagementSystem.Persistence.Tests;
@@ -14,11 +15,11 @@ public sealed class DocumentRepositoryTests
 
         using (var context = _database.CreateContext())
         {
-            new DocumentRepository(context).Add(document);
+            new DocumentRepository(context, TestMapper.Create()).Add(document);
         }
 
         using var readContext = _database.CreateContext();
-        var loaded = new DocumentRepository(readContext).GetById(document.Id);
+        var loaded = new DocumentRepository(readContext, TestMapper.Create()).GetById(document.Id);
 
         Assert.NotNull(loaded);
         Assert.Equal(document.Id, loaded!.Id);
@@ -33,7 +34,7 @@ public sealed class DocumentRepositoryTests
     {
         using var context = _database.CreateContext();
 
-        Assert.Null(new DocumentRepository(context).GetById(Guid.NewGuid()));
+        Assert.Null(new DocumentRepository(context, TestMapper.Create()).GetById(Guid.NewGuid()));
     }
 
     [Fact]
@@ -44,13 +45,13 @@ public sealed class DocumentRepositoryTests
 
         using (var context = _database.CreateContext())
         {
-            var repository = new DocumentRepository(context);
+            var repository = new DocumentRepository(context, TestMapper.Create());
             repository.Add(older);
             repository.Add(newer);
         }
 
         using var readContext = _database.CreateContext();
-        var documents = new DocumentRepository(readContext).GetAll();
+        var documents = new DocumentRepository(readContext, TestMapper.Create()).GetAll();
 
         Assert.Equal(new[] { newer.Id, older.Id }, documents.Select(document => document.Id));
     }
@@ -62,16 +63,16 @@ public sealed class DocumentRepositoryTests
 
         using (var context = _database.CreateContext())
         {
-            new DocumentRepository(context).Add(document);
+            new DocumentRepository(context, TestMapper.Create()).Add(document);
         }
 
         using (var context = _database.CreateContext())
         {
-            Assert.True(new DocumentRepository(context).Delete(document.Id));
+            Assert.True(new DocumentRepository(context, TestMapper.Create()).Delete(document.Id));
         }
 
         using var readContext = _database.CreateContext();
-        Assert.Null(new DocumentRepository(readContext).GetById(document.Id));
+        Assert.Null(new DocumentRepository(readContext, TestMapper.Create()).GetById(document.Id));
     }
 
     [Fact]
@@ -79,7 +80,42 @@ public sealed class DocumentRepositoryTests
     {
         using var context = _database.CreateContext();
 
-        Assert.False(new DocumentRepository(context).Delete(Guid.NewGuid()));
+        Assert.False(new DocumentRepository(context, TestMapper.Create()).Delete(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public void Add_TracksOnlyPersistenceEntity_NotBusinessModel()
+    {
+        using var context = _database.CreateContext();
+        var document = CreateDocument();
+
+        new DocumentRepository(context, TestMapper.Create()).Add(document);
+
+        var tracked = Assert.Single(context.ChangeTracker.Entries());
+        var entity = Assert.IsType<DocumentEntity>(tracked.Entity);
+        Assert.Equal(document.Id, entity.Id);
+        Assert.NotSame(document, tracked.Entity);
+    }
+
+    [Fact]
+    public void GetById_ReturnsIndependentBusinessModels_WithoutTrackingEntities()
+    {
+        var document = CreateDocument();
+        using (var context = _database.CreateContext())
+        {
+            new DocumentRepository(context, TestMapper.Create()).Add(document);
+        }
+        using var readContext = _database.CreateContext();
+        var repository = new DocumentRepository(readContext, TestMapper.Create());
+
+        var first = repository.GetById(document.Id);
+        var second = repository.GetById(document.Id);
+
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        Assert.NotSame(first, second);
+        Assert.Equal(first.Id, second.Id);
+        Assert.Empty(readContext.ChangeTracker.Entries());
     }
 
     private static Document CreateDocument(DateTimeOffset? createdAt = null) => new()

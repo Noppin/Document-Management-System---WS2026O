@@ -14,11 +14,11 @@ public sealed class CollectionRepositoryTests
 
         using (var context = _database.CreateContext())
         {
-            new CollectionRepository(context).Add(collection);
+            new CollectionRepository(context, TestMapper.Create()).Add(collection);
         }
 
         using var readContext = _database.CreateContext();
-        var loaded = new CollectionRepository(readContext).GetById(collection.Id);
+        var loaded = new CollectionRepository(readContext, TestMapper.Create()).GetById(collection.Id);
 
         Assert.NotNull(loaded);
         Assert.Equal(collection.Id, loaded!.Id);
@@ -30,13 +30,13 @@ public sealed class CollectionRepositoryTests
     {
         using (var context = _database.CreateContext())
         {
-            var repository = new CollectionRepository(context);
+            var repository = new CollectionRepository(context, TestMapper.Create());
             repository.Add(CreateCollection("Zeta"));
             repository.Add(CreateCollection("Alpha"));
         }
 
         using var readContext = _database.CreateContext();
-        var collections = new CollectionRepository(readContext).GetAll();
+        var collections = new CollectionRepository(readContext, TestMapper.Create()).GetAll();
 
         Assert.Equal(new[] { "Alpha", "Zeta" }, collections.Select(collection => collection.Name));
     }
@@ -49,16 +49,16 @@ public sealed class CollectionRepositoryTests
 
         using (var context = _database.CreateContext())
         {
-            Assert.True(new CollectionRepository(context).AddDocument(collectionId, documentId));
+            Assert.True(new CollectionRepository(context, TestMapper.Create()).AddDocument(collectionId, documentId));
         }
 
         using var readContext = _database.CreateContext();
-        var collection = new CollectionRepository(readContext).GetById(collectionId);
+        var collection = new CollectionRepository(readContext, TestMapper.Create()).GetById(collectionId);
 
         Assert.NotNull(collection);
-        var link = Assert.Single(collection!.CollectionDocuments);
-        Assert.Equal(collectionId, link.CollectionId);
-        Assert.Equal(documentId, link.DocumentId);
+        Assert.Equal(1, collection!.DocumentCount);
+        var document = Assert.Single(collection.Documents);
+        Assert.Equal(documentId, document.Id);
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public sealed class CollectionRepositoryTests
         var documentId = SeedDocument();
 
         using var context = _database.CreateContext();
-        Assert.False(new CollectionRepository(context).AddDocument(Guid.NewGuid(), documentId));
+        Assert.False(new CollectionRepository(context, TestMapper.Create()).AddDocument(Guid.NewGuid(), documentId));
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public sealed class CollectionRepositoryTests
         var collectionId = SeedCollection("Invoices");
 
         using var context = _database.CreateContext();
-        Assert.False(new CollectionRepository(context).AddDocument(collectionId, Guid.NewGuid()));
+        Assert.False(new CollectionRepository(context, TestMapper.Create()).AddDocument(collectionId, Guid.NewGuid()));
     }
 
     [Fact]
@@ -87,16 +87,17 @@ public sealed class CollectionRepositoryTests
 
         using (var context = _database.CreateContext())
         {
-            var repository = new CollectionRepository(context);
+            var repository = new CollectionRepository(context, TestMapper.Create());
             Assert.True(repository.AddDocument(collectionId, documentId));
             Assert.True(repository.AddDocument(collectionId, documentId));
         }
 
         using var readContext = _database.CreateContext();
-        var collection = new CollectionRepository(readContext).GetById(collectionId);
+        var collection = new CollectionRepository(readContext, TestMapper.Create()).GetById(collectionId);
 
         Assert.NotNull(collection);
-        Assert.Single(collection!.CollectionDocuments);
+        Assert.Equal(1, collection!.DocumentCount);
+        Assert.Single(collection.Documents);
     }
 
     [Fact]
@@ -107,16 +108,17 @@ public sealed class CollectionRepositoryTests
 
         using (var context = _database.CreateContext())
         {
-            var repository = new CollectionRepository(context);
+            var repository = new CollectionRepository(context, TestMapper.Create());
             repository.AddDocument(collectionId, documentId);
             Assert.True(repository.RemoveDocument(collectionId, documentId));
         }
 
         using var readContext = _database.CreateContext();
-        var collection = new CollectionRepository(readContext).GetById(collectionId);
+        var collection = new CollectionRepository(readContext, TestMapper.Create()).GetById(collectionId);
 
         Assert.NotNull(collection);
-        Assert.Empty(collection!.CollectionDocuments);
+        Assert.Equal(0, collection!.DocumentCount);
+        Assert.Empty(collection.Documents);
     }
 
     [Fact]
@@ -125,14 +127,14 @@ public sealed class CollectionRepositoryTests
         var collectionId = SeedCollection("Invoices");
 
         using var context = _database.CreateContext();
-        Assert.False(new CollectionRepository(context).RemoveDocument(collectionId, Guid.NewGuid()));
+        Assert.False(new CollectionRepository(context, TestMapper.Create()).RemoveDocument(collectionId, Guid.NewGuid()));
     }
 
     private Guid SeedCollection(string name)
     {
         var collection = CreateCollection(name);
         using var context = _database.CreateContext();
-        new CollectionRepository(context).Add(collection);
+        new CollectionRepository(context, TestMapper.Create()).Add(collection);
         return collection.Id;
     }
 
@@ -147,7 +149,7 @@ public sealed class CollectionRepositoryTests
         };
 
         using var context = _database.CreateContext();
-        new DocumentRepository(context).Add(document);
+        new DocumentRepository(context, TestMapper.Create()).Add(document);
         return document.Id;
     }
 

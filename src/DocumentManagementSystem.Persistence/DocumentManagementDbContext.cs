@@ -1,4 +1,4 @@
-using DocumentManagementSystem.Domain.Entities;
+using DocumentManagementSystem.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace DocumentManagementSystem.Persistence;
@@ -6,13 +6,13 @@ namespace DocumentManagementSystem.Persistence;
 public sealed class DocumentManagementDbContext(DbContextOptions<DocumentManagementDbContext> options)
     : DbContext(options)
 {
-    public DbSet<Document> Documents => Set<Document>();
-    public DbSet<Collection> Collections => Set<Collection>();
-    public DbSet<CollectionDocument> CollectionDocuments => Set<CollectionDocument>();
+    public DbSet<DocumentEntity> Documents => Set<DocumentEntity>();
+    public DbSet<CollectionEntity> Collections => Set<CollectionEntity>();
+    public DbSet<CollectionDocumentEntity> CollectionDocuments => Set<CollectionDocumentEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<Document>(entity =>
+        modelBuilder.Entity<DocumentEntity>(entity =>
         {
             entity.ToTable("documents");
             entity.HasKey(document => document.Id);
@@ -29,14 +29,14 @@ public sealed class DocumentManagementDbContext(DbContextOptions<DocumentManagem
                 .IsRequired();
         });
 
-        modelBuilder.Entity<Collection>(entity =>
+        modelBuilder.Entity<CollectionEntity>(entity =>
         {
             entity.ToTable("collections");
             entity.HasKey(collection => collection.Id);
             entity.Property(collection => collection.Name).IsRequired().HasMaxLength(200);
         });
 
-        modelBuilder.Entity<CollectionDocument>(entity =>
+        modelBuilder.Entity<CollectionDocumentEntity>(entity =>
         {
             entity.ToTable("collection_documents");
             entity.HasKey(link => new { link.CollectionId, link.DocumentId });

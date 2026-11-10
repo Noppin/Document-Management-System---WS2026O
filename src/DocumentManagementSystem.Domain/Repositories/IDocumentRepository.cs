@@ -1,6 +1,6 @@
 using DocumentManagementSystem.Domain.Entities;
 
-namespace DocumentManagementSystem.Persistence;
+namespace DocumentManagementSystem.Domain.Repositories;
 
 public interface IDocumentRepository
 {
