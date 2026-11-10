@@ -160,6 +160,24 @@ public sealed class CollectionServiceTests
         Assert.False(CreateService().RemoveDocument(collectionId, Guid.NewGuid()));
     }
 
+    [Fact]
+    public void GetAll_AfterLinkChanges_ReturnsActualDocumentCounts()
+    {
+        var service = CreateService();
+        var collectionId = SeedCollection("Invoices");
+        var firstDocumentId = SeedDocument("first.pdf");
+        var secondDocumentId = SeedDocument("second.pdf");
+        Assert.True(service.AddDocument(collectionId, firstDocumentId));
+        Assert.True(service.AddDocument(collectionId, secondDocumentId));
+
+        Assert.Equal(2, Assert.Single(service.GetAll()).DocumentCount);
+        Assert.Equal(2, service.GetById(collectionId)!.Documents.Count);
+
+        Assert.True(service.RemoveDocument(collectionId, firstDocumentId));
+        Assert.Equal(1, Assert.Single(service.GetAll()).DocumentCount);
+        Assert.Equal(secondDocumentId, Assert.Single(service.GetById(collectionId)!.Documents).Id);
+    }
+
     private CollectionService CreateService() =>
         new(
             new CollectionRepository(_database.CreateContext(), TestMapper.Create()),

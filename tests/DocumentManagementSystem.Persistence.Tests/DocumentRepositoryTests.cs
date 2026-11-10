@@ -1,4 +1,5 @@
 using DocumentManagementSystem.Domain.Entities;
+using DocumentManagementSystem.Persistence.Entities;
 using DocumentManagementSystem.TestHelpers;
 
 namespace DocumentManagementSystem.Persistence.Tests;
@@ -80,6 +81,41 @@ public sealed class DocumentRepositoryTests
         using var context = _database.CreateContext();
 
         Assert.False(new DocumentRepository(context, TestMapper.Create()).Delete(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public void Add_TracksOnlyPersistenceEntity_NotBusinessModel()
+    {
+        using var context = _database.CreateContext();
+        var document = CreateDocument();
+
+        new DocumentRepository(context, TestMapper.Create()).Add(document);
+
+        var tracked = Assert.Single(context.ChangeTracker.Entries());
+        var entity = Assert.IsType<DocumentEntity>(tracked.Entity);
+        Assert.Equal(document.Id, entity.Id);
+        Assert.NotSame(document, tracked.Entity);
+    }
+
+    [Fact]
+    public void GetById_ReturnsIndependentBusinessModels_WithoutTrackingEntities()
+    {
+        var document = CreateDocument();
+        using (var context = _database.CreateContext())
+        {
+            new DocumentRepository(context, TestMapper.Create()).Add(document);
+        }
+        using var readContext = _database.CreateContext();
+        var repository = new DocumentRepository(readContext, TestMapper.Create());
+
+        var first = repository.GetById(document.Id);
+        var second = repository.GetById(document.Id);
+
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        Assert.NotSame(first, second);
+        Assert.Equal(first.Id, second.Id);
+        Assert.Empty(readContext.ChangeTracker.Entries());
     }
 
     private static Document CreateDocument(DateTimeOffset? createdAt = null) => new()
