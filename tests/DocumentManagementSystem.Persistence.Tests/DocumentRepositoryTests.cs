@@ -14,11 +14,11 @@ public sealed class DocumentRepositoryTests
 
         using (var context = _database.CreateContext())
         {
-            new DocumentRepository(context).Add(document);
+            new DocumentRepository(context, TestMapper.Create()).Add(document);
         }
 
         using var readContext = _database.CreateContext();
-        var loaded = new DocumentRepository(readContext).GetById(document.Id);
+        var loaded = new DocumentRepository(readContext, TestMapper.Create()).GetById(document.Id);
 
         Assert.NotNull(loaded);
         Assert.Equal(document.Id, loaded!.Id);
@@ -33,7 +33,7 @@ public sealed class DocumentRepositoryTests
     {
         using var context = _database.CreateContext();
 
-        Assert.Null(new DocumentRepository(context).GetById(Guid.NewGuid()));
+        Assert.Null(new DocumentRepository(context, TestMapper.Create()).GetById(Guid.NewGuid()));
     }
 
     [Fact]
@@ -44,13 +44,13 @@ public sealed class DocumentRepositoryTests
 
         using (var context = _database.CreateContext())
         {
-            var repository = new DocumentRepository(context);
+            var repository = new DocumentRepository(context, TestMapper.Create());
             repository.Add(older);
             repository.Add(newer);
         }
 
         using var readContext = _database.CreateContext();
-        var documents = new DocumentRepository(readContext).GetAll();
+        var documents = new DocumentRepository(readContext, TestMapper.Create()).GetAll();
 
         Assert.Equal(new[] { newer.Id, older.Id }, documents.Select(document => document.Id));
     }
@@ -62,16 +62,16 @@ public sealed class DocumentRepositoryTests
 
         using (var context = _database.CreateContext())
         {
-            new DocumentRepository(context).Add(document);
+            new DocumentRepository(context, TestMapper.Create()).Add(document);
         }
 
         using (var context = _database.CreateContext())
         {
-            Assert.True(new DocumentRepository(context).Delete(document.Id));
+            Assert.True(new DocumentRepository(context, TestMapper.Create()).Delete(document.Id));
         }
 
         using var readContext = _database.CreateContext();
-        Assert.Null(new DocumentRepository(readContext).GetById(document.Id));
+        Assert.Null(new DocumentRepository(readContext, TestMapper.Create()).GetById(document.Id));
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class DocumentRepositoryTests
     {
         using var context = _database.CreateContext();
 
-        Assert.False(new DocumentRepository(context).Delete(Guid.NewGuid()));
+        Assert.False(new DocumentRepository(context, TestMapper.Create()).Delete(Guid.NewGuid()));
     }
 
     private static Document CreateDocument(DateTimeOffset? createdAt = null) => new()

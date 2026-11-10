@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using DocumentManagementSystem.Persistence.Mapping;
 using Microsoft.EntityFrameworkCore;
 
 namespace DocumentManagementSystem.Persistence;
@@ -9,6 +10,8 @@ public static class DependencyInjection
         this IServiceCollection services,
         string connectionString)
     {
+        services.AddLogging();
+        services.AddAutoMapper(configuration => configuration.AddProfile<PersistenceMappingProfile>());
         services.AddDbContext<DocumentManagementDbContext>(options =>
             options.UseNpgsql(connectionString));
         services.AddScoped<IDocumentRepository, DocumentRepository>();

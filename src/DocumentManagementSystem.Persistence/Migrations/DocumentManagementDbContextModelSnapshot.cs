@@ -22,7 +22,7 @@ namespace DocumentManagementSystem.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.Collection", b =>
+            modelBuilder.Entity("DocumentManagementSystem.Persistence.Entities.CollectionEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -41,7 +41,7 @@ namespace DocumentManagementSystem.Persistence.Migrations
                     b.ToTable("collections", (string)null);
                 });
 
-            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.CollectionDocument", b =>
+            modelBuilder.Entity("DocumentManagementSystem.Persistence.Entities.CollectionDocumentEntity", b =>
                 {
                     b.Property<Guid>("CollectionId")
                         .HasColumnType("uuid");
@@ -56,7 +56,7 @@ namespace DocumentManagementSystem.Persistence.Migrations
                     b.ToTable("collection_documents", (string)null);
                 });
 
-            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.Document", b =>
+            modelBuilder.Entity("DocumentManagementSystem.Persistence.Entities.DocumentEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -102,15 +102,15 @@ namespace DocumentManagementSystem.Persistence.Migrations
                     b.ToTable("documents", (string)null);
                 });
 
-            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.CollectionDocument", b =>
+            modelBuilder.Entity("DocumentManagementSystem.Persistence.Entities.CollectionDocumentEntity", b =>
                 {
-                    b.HasOne("DocumentManagementSystem.Domain.Entities.Collection", "Collection")
+                    b.HasOne("DocumentManagementSystem.Persistence.Entities.CollectionEntity", "Collection")
                         .WithMany("CollectionDocuments")
                         .HasForeignKey("CollectionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("DocumentManagementSystem.Domain.Entities.Document", "Document")
+                    b.HasOne("DocumentManagementSystem.Persistence.Entities.DocumentEntity", "Document")
                         .WithMany("CollectionDocuments")
                         .HasForeignKey("DocumentId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -121,12 +121,12 @@ namespace DocumentManagementSystem.Persistence.Migrations
                     b.Navigation("Document");
                 });
 
-            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.Collection", b =>
+            modelBuilder.Entity("DocumentManagementSystem.Persistence.Entities.CollectionEntity", b =>
                 {
                     b.Navigation("CollectionDocuments");
                 });
 
-            modelBuilder.Entity("DocumentManagementSystem.Domain.Entities.Document", b =>
+            modelBuilder.Entity("DocumentManagementSystem.Persistence.Entities.DocumentEntity", b =>
                 {
                     b.Navigation("CollectionDocuments");
                 });

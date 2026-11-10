@@ -162,8 +162,8 @@ public sealed class CollectionServiceTests
 
     private CollectionService CreateService() =>
         new(
-            new CollectionRepository(_database.CreateContext()),
-            new DocumentRepository(_database.CreateContext()),
+            new CollectionRepository(_database.CreateContext(), TestMapper.Create()),
+            new DocumentRepository(_database.CreateContext(), TestMapper.Create()),
             new CreateCollectionRequestValidator(),
             TestMapper.Create(),
             NullLogger<CollectionService>.Instance);
@@ -172,7 +172,7 @@ public sealed class CollectionServiceTests
     {
         var collection = new Collection { Name = name };
         using var context = _database.CreateContext();
-        new CollectionRepository(context).Add(collection);
+        new CollectionRepository(context, TestMapper.Create()).Add(collection);
         return collection.Id;
     }
 
@@ -187,7 +187,7 @@ public sealed class CollectionServiceTests
         };
 
         using var context = _database.CreateContext();
-        new DocumentRepository(context).Add(document);
+        new DocumentRepository(context, TestMapper.Create()).Add(document);
         return document.Id;
     }
 }

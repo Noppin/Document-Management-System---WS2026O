@@ -1,4 +1,6 @@
+using AutoMapper;
 using DocumentManagementSystem.Domain.Entities;
+using DocumentManagementSystem.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -7,6 +9,7 @@ namespace DocumentManagementSystem.Persistence;
 
 public sealed class DocumentRepository(
     DocumentManagementDbContext dbContext,
+    IMapper mapper,
     ILogger<DocumentRepository>? logger = null) : IDocumentRepository
 {
     private readonly ILogger<DocumentRepository> _logger =
@@ -14,7 +17,7 @@ public sealed class DocumentRepository(
 
     public void Add(Document document)
     {
-        dbContext.Documents.Add(document);
+        dbContext.Documents.Add(mapper.Map<DocumentEntity>(document));
         dbContext.SaveChanges();
 
         _logger.LogInformation(
@@ -23,14 +26,18 @@ public sealed class DocumentRepository(
             document.FileName);
     }
 
-    public IReadOnlyList<Document> GetAll() => dbContext.Documents
+    public IReadOnlyList<Document> GetAll() => mapper.Map<List<Document>>(dbContext.Documents
         .AsNoTracking()
         .OrderByDescending(document => document.CreatedAt)
-        .ToList();
+        .ToList());
 
-    public Document? GetById(Guid id) => dbContext.Documents
-        .AsNoTracking()
-        .SingleOrDefault(document => document.Id == id);
+    public Document? GetById(Guid id)
+    {
+        var entity = dbContext.Documents
+            .AsNoTracking()
+            .SingleOrDefault(document => document.Id == id);
+        return entity is null ? null : mapper.Map<Document>(entity);
+    }
 
     public bool Delete(Guid id)
     {

@@ -1,4 +1,6 @@
+using AutoMapper;
 using DocumentManagementSystem.Domain.Entities;
+using DocumentManagementSystem.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -7,6 +9,7 @@ namespace DocumentManagementSystem.Persistence;
 
 public sealed class CollectionRepository(
     DocumentManagementDbContext dbContext,
+    IMapper mapper,
     ILogger<CollectionRepository>? logger = null) : ICollectionRepository
 {
     private readonly ILogger<CollectionRepository> _logger =
@@ -14,27 +17,32 @@ public sealed class CollectionRepository(
 
     public Collection Add(Collection collection)
     {
-        dbContext.Collections.Add(collection);
+        var entity = mapper.Map<CollectionEntity>(collection);
+        dbContext.Collections.Add(entity);
         dbContext.SaveChanges();
 
         _logger.LogInformation(
             "Stored collection {CollectionId} ({CollectionName}) in the database",
             collection.Id,
             collection.Name);
-        return collection;
+        return mapper.Map<Collection>(entity);
     }
 
-    public IReadOnlyList<Collection> GetAll() => dbContext.Collections
+    public IReadOnlyList<Collection> GetAll() => mapper.Map<List<Collection>>(dbContext.Collections
         .AsNoTracking()
         .Include(collection => collection.CollectionDocuments)
         .OrderBy(collection => collection.Name)
-        .ToList();
+        .ToList());
 
-    public Collection? GetById(Guid id) => dbContext.Collections
-        .AsNoTracking()
-        .Include(collection => collection.CollectionDocuments)
-        .ThenInclude(link => link.Document)
-        .SingleOrDefault(collection => collection.Id == id);
+    public Collection? GetById(Guid id)
+    {
+        var entity = dbContext.Collections
+            .AsNoTracking()
+            .Include(collection => collection.CollectionDocuments)
+            .ThenInclude(link => link.Document)
+            .SingleOrDefault(collection => collection.Id == id);
+        return entity is null ? null : mapper.Map<Collection>(entity);
+    }
 
     public bool ExistsByName(string name) => dbContext.Collections
         .Any(collection => collection.Name == name);
@@ -49,7 +57,7 @@ public sealed class CollectionRepository(
                 link.CollectionId == collectionId && link.DocumentId == documentId))
             return true;
 
-        dbContext.CollectionDocuments.Add(new CollectionDocument
+        dbContext.CollectionDocuments.Add(new CollectionDocumentEntity
         {
             CollectionId = collectionId,
             DocumentId = documentId

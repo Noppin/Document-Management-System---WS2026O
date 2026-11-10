@@ -28,7 +28,7 @@ public sealed class DocumentServiceTests
         Assert.Equal(8, response.FileSize);
 
         using var context = _database.CreateContext();
-        Assert.Single(new DocumentRepository(context).GetAll());
+        Assert.Single(new DocumentRepository(context, TestMapper.Create()).GetAll());
     }
 
 
@@ -66,7 +66,7 @@ public sealed class DocumentServiceTests
             () => service.UploadAsync(CreateUploadRequest("invoice.pdf")));
 
         using var context = _database.CreateContext();
-        Assert.Empty(new DocumentRepository(context).GetAll());
+        Assert.Empty(new DocumentRepository(context, TestMapper.Create()).GetAll());
     }
 
     [Fact]
@@ -180,7 +180,7 @@ public sealed class DocumentServiceTests
     }
 
     private DocumentService CreateService(IDocumentQueuePublisher? queuePublisher = null) =>
-        new(new DocumentRepository(_database.CreateContext()), TestMapper.Create(),
+        new(new DocumentRepository(_database.CreateContext(), TestMapper.Create()), TestMapper.Create(),
             new UploadDocumentRequestValidator(), queuePublisher ?? new RecordingDocumentQueuePublisher(),
             NullLogger<DocumentService>.Instance);
 
@@ -196,7 +196,7 @@ public sealed class DocumentServiceTests
         };
 
         using var context = _database.CreateContext();
-        new DocumentRepository(context).Add(document);
+        new DocumentRepository(context, TestMapper.Create()).Add(document);
         return document.Id;
     }
 
