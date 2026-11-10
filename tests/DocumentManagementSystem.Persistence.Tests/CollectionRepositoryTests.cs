@@ -56,9 +56,9 @@ public sealed class CollectionRepositoryTests
         var collection = new CollectionRepository(readContext, TestMapper.Create()).GetById(collectionId);
 
         Assert.NotNull(collection);
-        var link = Assert.Single(collection!.CollectionDocuments);
-        Assert.Equal(collectionId, link.CollectionId);
-        Assert.Equal(documentId, link.DocumentId);
+        Assert.Equal(1, collection!.DocumentCount);
+        var document = Assert.Single(collection.Documents);
+        Assert.Equal(documentId, document.Id);
     }
 
     [Fact]
@@ -96,7 +96,8 @@ public sealed class CollectionRepositoryTests
         var collection = new CollectionRepository(readContext, TestMapper.Create()).GetById(collectionId);
 
         Assert.NotNull(collection);
-        Assert.Single(collection!.CollectionDocuments);
+        Assert.Equal(1, collection!.DocumentCount);
+        Assert.Single(collection.Documents);
     }
 
     [Fact]
@@ -116,7 +117,8 @@ public sealed class CollectionRepositoryTests
         var collection = new CollectionRepository(readContext, TestMapper.Create()).GetById(collectionId);
 
         Assert.NotNull(collection);
-        Assert.Empty(collection!.CollectionDocuments);
+        Assert.Equal(0, collection!.DocumentCount);
+        Assert.Empty(collection.Documents);
     }
 
     [Fact]

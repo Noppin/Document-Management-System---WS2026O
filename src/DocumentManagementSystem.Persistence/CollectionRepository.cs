@@ -1,5 +1,6 @@
 using AutoMapper;
 using DocumentManagementSystem.Domain.Entities;
+using DocumentManagementSystem.Domain.Repositories;
 using DocumentManagementSystem.Persistence.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;

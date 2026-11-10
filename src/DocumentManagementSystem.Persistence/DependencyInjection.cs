@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using DocumentManagementSystem.Domain.Repositories;
 using DocumentManagementSystem.Persistence.Mapping;
 using Microsoft.EntityFrameworkCore;
 

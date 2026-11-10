@@ -8,14 +8,17 @@ public sealed class MappingProfile : Profile
 {
     public MappingProfile()
     {
+        CreateMap<DocumentStatus, DocumentResponseStatus>()
+            .ConvertUsing(status => (DocumentResponseStatus)status);
         CreateMap<Document, DocumentResponse>();
-        CreateMap<Collection, CollectionResponse>()
-            .ForCtorParam(nameof(CollectionResponse.DocumentCount),
-                options => options.MapFrom(source => source.CollectionDocuments.Count));
-        CreateMap<Collection, CollectionDetailResponse>()
-            .ForCtorParam(nameof(CollectionDetailResponse.Documents),
-                options => options.MapFrom(source => source.CollectionDocuments
-                    .Select(link => link.Document)
-                    .ToList()));
+        CreateMap<Document, DocumentDownloadResponse>();
+        CreateMap<CreateCollectionRequest, Collection>()
+            .ForMember(destination => destination.Name, options => options.MapFrom(source => source.Name.Trim()))
+            .ForMember(destination => destination.Id, options => options.Ignore())
+            .ForMember(destination => destination.CreatedAt, options => options.Ignore())
+            .ForMember(destination => destination.DocumentCount, options => options.Ignore())
+            .ForMember(destination => destination.Documents, options => options.Ignore());
+        CreateMap<Collection, CollectionResponse>();
+        CreateMap<Collection, CollectionDetailResponse>();
     }
 }

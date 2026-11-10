@@ -12,5 +12,4 @@ public sealed class Document
     public DocumentStatus Status { get; init; }
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; init; } = DateTimeOffset.UtcNow;
-    public ICollection<CollectionDocument> CollectionDocuments { get; init; } = new List<CollectionDocument>();
 }

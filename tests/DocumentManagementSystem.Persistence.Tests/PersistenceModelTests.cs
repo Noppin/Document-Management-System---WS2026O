@@ -17,7 +17,6 @@ public sealed class PersistenceModelTests
         Assert.NotNull(context.Model.FindEntityType(typeof(CollectionDocumentEntity)));
         Assert.Null(context.Model.FindEntityType(typeof(Document)));
         Assert.Null(context.Model.FindEntityType(typeof(Collection)));
-        Assert.Null(context.Model.FindEntityType(typeof(CollectionDocument)));
     }
 
     [Fact]

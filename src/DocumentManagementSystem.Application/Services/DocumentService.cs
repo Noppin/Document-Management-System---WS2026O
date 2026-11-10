@@ -2,7 +2,7 @@ using AutoMapper;
 using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Domain.Entities;
 using DocumentManagementSystem.Messaging;
-using DocumentManagementSystem.Persistence;
+using DocumentManagementSystem.Domain.Repositories;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 
@@ -82,7 +82,7 @@ public sealed class DocumentService(
         var document = documents.GetById(id);
         return document is null
             ? null
-            : new DocumentDownloadResponse(document.Content, document.ContentType, document.FileName);
+            : mapper.Map<DocumentDownloadResponse>(document);
     }
 
     public bool Delete(Guid id) => documents.Delete(id);
