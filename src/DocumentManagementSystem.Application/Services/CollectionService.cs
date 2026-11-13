@@ -1,7 +1,7 @@
 using AutoMapper;
 using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Domain.Entities;
-using DocumentManagementSystem.Persistence;
+using DocumentManagementSystem.Domain.Repositories;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 
@@ -22,7 +22,7 @@ public sealed class CollectionService(
         if (collectionRepository.ExistsByName(name))
             throw new ArgumentException($"A collection named '{name}' already exists.");
 
-        var collection = collectionRepository.Add(new Collection { Name = name });
+        var collection = collectionRepository.Add(mapper.Map<Collection>(request));
 
         logger.LogInformation(
             "Created collection {CollectionId} ({CollectionName})",
