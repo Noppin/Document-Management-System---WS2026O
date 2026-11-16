@@ -8,6 +8,7 @@ using DocumentManagementSystem.TestHelpers;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
+using DocumentManagementSystem.Storage;
 
 namespace DocumentManagementSystem.Application.Tests;
 
@@ -31,6 +32,18 @@ public sealed class DocumentServiceTests
         Assert.Single(new DocumentRepository(context, TestMapper.Create()).GetAll());
     }
 
+
+    [Fact]
+    public async Task UploadAsync_ValidPdf_StoresOriginalPdfInMinioAbstraction()
+    {
+        var storage = new InMemoryDocumentStorage();
+        var service = CreateService(storage: storage);
+
+        var response = await service.UploadAsync(CreateUploadRequest("invoice.pdf"));
+
+        Assert.True(storage.Documents.TryGetValue(response.Id, out var stored));
+        Assert.Equal("%PDF-1.4"u8.ToArray(), stored);
+    }
 
     [Fact]
     public async Task UploadAsync_ValidPdf_PublishesOcrQueueMessage()
@@ -67,6 +80,18 @@ public sealed class DocumentServiceTests
 
         using var context = _database.CreateContext();
         Assert.Empty(new DocumentRepository(context, TestMapper.Create()).GetAll());
+    }
+
+    [Fact]
+    public async Task UploadAsync_QueuePublishFails_RemovesMinioObject()
+    {
+        var storage = new InMemoryDocumentStorage();
+        var service = CreateService(new ThrowingDocumentQueuePublisher(), storage);
+
+        await Assert.ThrowsAsync<DocumentQueueException>(
+            () => service.UploadAsync(CreateUploadRequest("invoice.pdf")));
+
+        Assert.Empty(storage.Documents);
     }
 
     [Fact]
@@ -179,9 +204,12 @@ public sealed class DocumentServiceTests
         Assert.Null(service.GetDownload(Guid.NewGuid()));
     }
 
-    private DocumentService CreateService(IDocumentQueuePublisher? queuePublisher = null) =>
+    private DocumentService CreateService(
+        IDocumentQueuePublisher? queuePublisher = null,
+        IDocumentStorage? storage = null) =>
         new(new DocumentRepository(_database.CreateContext(), TestMapper.Create()), TestMapper.Create(),
             new UploadDocumentRequestValidator(), queuePublisher ?? new RecordingDocumentQueuePublisher(),
+            storage ?? new InMemoryDocumentStorage(),
             NullLogger<DocumentService>.Instance);
 
     private Guid SeedDocument(string fileName, DateTimeOffset? createdAt = null)
@@ -214,6 +242,32 @@ public sealed class DocumentServiceTests
                 ContentType = contentType
             }
         };
+    }
+
+    private sealed class InMemoryDocumentStorage : IDocumentStorage
+    {
+        public Dictionary<Guid, byte[]> Documents { get; } = [];
+
+        public async Task StoreAsync(
+            Guid documentId,
+            Stream content,
+            long contentLength,
+            string contentType,
+            CancellationToken cancellationToken = default)
+        {
+            using var buffer = new MemoryStream();
+            await content.CopyToAsync(buffer, cancellationToken);
+            Documents[documentId] = buffer.ToArray();
+        }
+
+        public Task<byte[]> GetAsync(Guid documentId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Documents[documentId]);
+
+        public Task DeleteAsync(Guid documentId, CancellationToken cancellationToken = default)
+        {
+            Documents.Remove(documentId);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class RecordingDocumentQueuePublisher : IDocumentQueuePublisher

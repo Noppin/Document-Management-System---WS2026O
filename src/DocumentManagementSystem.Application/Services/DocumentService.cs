@@ -5,6 +5,7 @@ using DocumentManagementSystem.Messaging;
 using DocumentManagementSystem.Domain.Repositories;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
+using DocumentManagementSystem.Storage;
 
 namespace DocumentManagementSystem.Application.Services;
 
@@ -13,6 +14,7 @@ public sealed class DocumentService(
     IMapper mapper,
     IValidator<UploadDocumentRequest> validator,
     IDocumentQueuePublisher queuePublisher,
+    IDocumentStorage storage,
     ILogger<DocumentService> logger) : IDocumentService
 {
     public async Task<DocumentResponse> UploadAsync(
@@ -34,16 +36,24 @@ public sealed class DocumentService(
             Status = DocumentStatus.Queued
         };
 
-        documents.Add(document);
-
-        logger.LogInformation(
-            "Persisted uploaded document {DocumentId} ({FileName}, {FileSize} bytes) for OCR processing",
+        await using var storageStream = new MemoryStream(content, writable: false);
+        await storage.StoreAsync(
             document.Id,
-            document.FileName,
-            document.FileSize);
+            storageStream,
+            document.FileSize,
+            document.ContentType,
+            cancellationToken);
 
         try
         {
+            documents.Add(document);
+
+            logger.LogInformation(
+                "Persisted uploaded document {DocumentId} ({FileName}, {FileSize} bytes) and stored its PDF in MinIO",
+                document.Id,
+                document.FileName,
+                document.FileSize);
+
             await queuePublisher.PublishAsync(
                 new DocumentUploadedMessage(
                     MessageId: Guid.NewGuid(),
@@ -54,12 +64,24 @@ public sealed class DocumentService(
                     UploadedAt: document.CreatedAt),
                 cancellationToken);
         }
-        catch (DocumentQueueException)
+        catch
         {
             documents.Delete(document.Id);
 
+            try
+            {
+                await storage.DeleteAsync(document.Id, cancellationToken);
+            }
+            catch (DocumentStorageException cleanupException)
+            {
+                logger.LogError(
+                    cleanupException,
+                    "Failed to remove MinIO object for document {DocumentId} during upload rollback",
+                    document.Id);
+            }
+
             logger.LogWarning(
-                "Removed document {DocumentId} because the OCR queue publish failed",
+                "Rolled back document {DocumentId} after the upload pipeline failed",
                 document.Id);
 
             throw;
