@@ -168,27 +168,31 @@ public sealed class DocumentServiceTests
     }
 
     [Fact]
-    public void Delete_ExistingDocument_ReturnsTrue()
+    public async Task Delete_ExistingDocument_ReturnsTrue()
     {
         var id = SeedDocument("invoice.pdf");
 
-        Assert.True(CreateService().Delete(id));
+        var storage = new InMemoryDocumentStorage();
+        storage.Documents[id] = "%PDF-1.4"u8.ToArray();
+        Assert.True(await CreateService(storage: storage).DeleteAsync(id));
         Assert.Null(CreateService().Get(id));
     }
 
     [Fact]
-    public void Delete_UnknownDocument_ReturnsFalse()
+    public async Task Delete_UnknownDocument_ReturnsFalse()
     {
-        Assert.False(CreateService().Delete(Guid.NewGuid()));
+        Assert.False(await CreateService().DeleteAsync(Guid.NewGuid()));
     }
 
     [Fact]
-    public void GetDownload_ExistingDocument_ReturnsStoredContent()
+    public async Task GetDownload_ExistingDocument_ReturnsStoredContent()
     {
-        var service = CreateService();
+        var storage = new InMemoryDocumentStorage();
         var id = SeedDocument("invoice.pdf");
+        storage.Documents[id] = "%PDF-1.4"u8.ToArray();
+        var service = CreateService(storage: storage);
 
-        var download = service.GetDownload(id);
+        var download = await service.GetDownloadAsync(id);
 
         Assert.NotNull(download);
         Assert.Equal("application/pdf", download!.ContentType);
@@ -197,11 +201,11 @@ public sealed class DocumentServiceTests
     }
 
     [Fact]
-    public void GetDownload_UnknownDocument_ReturnsNull()
+    public async Task GetDownload_UnknownDocument_ReturnsNull()
     {
         var service = CreateService();
 
-        Assert.Null(service.GetDownload(Guid.NewGuid()));
+        Assert.Null(await service.GetDownloadAsync(Guid.NewGuid()));
     }
 
     private DocumentService CreateService(

@@ -99,13 +99,31 @@ public sealed class DocumentService(
         return document is null ? null : mapper.Map<DocumentResponse>(document);
     }
 
-    public DocumentDownloadResponse? GetDownload(Guid id)
+    public async Task<DocumentDownloadResponse?> GetDownloadAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
     {
         var document = documents.GetById(id);
-        return document is null
-            ? null
-            : mapper.Map<DocumentDownloadResponse>(document);
+        if (document is null)
+        {
+            return null;
+        }
+
+        var content = await storage.GetAsync(id, cancellationToken);
+        return new DocumentDownloadResponse(content, document.ContentType, document.FileName);
     }
 
-    public bool Delete(Guid id) => documents.Delete(id);
+    public async Task<bool> DeleteAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var document = documents.GetById(id);
+        if (document is null)
+        {
+            return false;
+        }
+
+        await storage.DeleteAsync(id, cancellationToken);
+        return documents.Delete(id);
+    }
 }
