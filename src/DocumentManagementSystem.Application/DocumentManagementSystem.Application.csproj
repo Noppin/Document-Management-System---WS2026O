@@ -3,7 +3,7 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="AutoMapper" Version="15.1.3" />
+    <PackageReference Include="AutoMapper" Version="15.1.4" />
     <PackageReference Include="FluentValidation" Version="11.11.0" />
     <ProjectReference Include="..\DocumentManagementSystem.Domain\DocumentManagementSystem.Domain.csproj" />
     <ProjectReference Include="..\DocumentManagementSystem.Messaging\DocumentManagementSystem.Messaging.csproj" />
