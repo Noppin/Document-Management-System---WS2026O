@@ -7,6 +7,8 @@ var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.Configure<RabbitMqOptions>(
     builder.Configuration.GetSection(RabbitMqOptions.SectionName));
+builder.Services.Configure<OcrOptions>(
+    builder.Configuration.GetSection(OcrOptions.SectionName));
 builder.Services.AddSingleton<IConnectionFactory>(serviceProvider =>
 {
     var options = serviceProvider.GetRequiredService<IOptions<RabbitMqOptions>>().Value;
@@ -23,6 +25,7 @@ builder.Services.AddSingleton<IConnectionFactory>(serviceProvider =>
     };
 });
 builder.Services.AddSingleton<OcrMessageProcessor>();
+builder.Services.AddSingleton<IOcrEngine, TesseractOcrEngine>();
 builder.Services.AddHostedService<OcrQueueWorker>();
 
 var host = builder.Build();
