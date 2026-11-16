@@ -86,13 +86,13 @@ public sealed class DocumentsControllerTests
     }
 
     [Fact]
-    public void Download_ExistingDocument_ReturnsFileContent()
+    public async Task Download_ExistingDocument_ReturnsFileContent()
     {
         var id = Guid.NewGuid();
         var download = new DocumentDownloadResponse(new byte[] { 1, 2, 3 }, "application/pdf", "report.pdf");
-        _service.GetDownload(id).Returns(download);
+        _service.GetDownloadAsync(id, Arg.Any<CancellationToken>()).Returns(download);
 
-        var result = _controller.Download(id);
+        var result = await _controller.Download(id, CancellationToken.None);
 
         var file = Assert.IsType<FileContentResult>(result);
         Assert.Same(download.Content, file.FileContents);
@@ -101,34 +101,34 @@ public sealed class DocumentsControllerTests
     }
 
     [Fact]
-    public void Download_MissingDocument_ReturnsNotFound()
+    public async Task Download_MissingDocument_ReturnsNotFound()
     {
         var id = Guid.NewGuid();
-        _service.GetDownload(id).Returns((DocumentDownloadResponse?)null);
+        _service.GetDownloadAsync(id, Arg.Any<CancellationToken>()).Returns((DocumentDownloadResponse?)null);
 
-        var result = _controller.Download(id);
+        var result = await _controller.Download(id, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
     }
 
     [Fact]
-    public void Delete_ExistingDocument_ReturnsNoContent()
+    public async Task Delete_ExistingDocument_ReturnsNoContent()
     {
         var id = Guid.NewGuid();
-        _service.Delete(id).Returns(true);
+        _service.DeleteAsync(id, Arg.Any<CancellationToken>()).Returns(true);
 
-        var result = _controller.Delete(id);
+        var result = await _controller.Delete(id, CancellationToken.None);
 
         Assert.IsType<NoContentResult>(result);
     }
 
     [Fact]
-    public void Delete_MissingDocument_ReturnsNotFound()
+    public async Task Delete_MissingDocument_ReturnsNotFound()
     {
         var id = Guid.NewGuid();
-        _service.Delete(id).Returns(false);
+        _service.DeleteAsync(id, Arg.Any<CancellationToken>()).Returns(false);
 
-        var result = _controller.Delete(id);
+        var result = await _controller.Delete(id, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
     }
