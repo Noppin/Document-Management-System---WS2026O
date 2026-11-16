@@ -33,7 +33,7 @@ public sealed class OcrMessageProcessor(ILogger<OcrMessageProcessor> logger)
         }
 
         logger.LogInformation(
-            "OCR worker received document {DocumentId} ({FileName}) for later OCR processing",
+            "OCR worker received document {DocumentId} ({FileName}) for OCR processing",
             message.DocumentId,
             message.FileName);
 

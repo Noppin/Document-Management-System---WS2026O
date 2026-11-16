@@ -3,6 +3,7 @@ WORKDIR /src
 
 COPY Directory.Build.props ./
 COPY src/DocumentManagementSystem.Messaging/DocumentManagementSystem.Messaging.csproj src/DocumentManagementSystem.Messaging/
+COPY src/DocumentManagementSystem.Storage/DocumentManagementSystem.Storage.csproj src/DocumentManagementSystem.Storage/
 COPY src/DocumentManagementSystem.OcrWorker/DocumentManagementSystem.OcrWorker.csproj src/DocumentManagementSystem.OcrWorker/
 RUN dotnet restore src/DocumentManagementSystem.OcrWorker/DocumentManagementSystem.OcrWorker.csproj
 

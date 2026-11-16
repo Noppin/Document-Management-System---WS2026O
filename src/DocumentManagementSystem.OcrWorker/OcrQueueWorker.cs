@@ -8,6 +8,7 @@ namespace DocumentManagementSystem.OcrWorker;
 public sealed class OcrQueueWorker(
     IOptions<RabbitMqOptions> options,
     OcrMessageProcessor processor,
+    IOcrDocumentProcessor documentProcessor,
     ILogger<OcrQueueWorker> logger,
     IConnectionFactory? connectionFactory = null) : BackgroundService
 {
@@ -62,6 +63,7 @@ public sealed class OcrQueueWorker(
             try
             {
                 message = processor.Process(eventArgs.Body);
+                await documentProcessor.ProcessAsync(message, stoppingToken);
                 await channel.BasicAckAsync(eventArgs.DeliveryTag, false, stoppingToken);
             }
             catch (OcrMessageProcessingException exception)
@@ -69,6 +71,21 @@ public sealed class OcrQueueWorker(
                 logger.LogError(
                     exception,
                     "Rejecting invalid OCR queue message {MessageId}",
+                    eventArgs.BasicProperties.MessageId);
+                await channel.BasicNackAsync(
+                    eventArgs.DeliveryTag,
+                    multiple: false,
+                    requeue: false,
+                    cancellationToken: stoppingToken);
+            }
+            catch (OcrExecutionException exception)
+            {
+                // Ghostscript/Tesseract failures are deterministic for a given PDF;
+                // requeueing would retry the same document forever.
+                logger.LogError(
+                    exception,
+                    "OCR failed for document {DocumentId} (message {MessageId}); moving message to the dead-letter queue",
+                    message?.DocumentId,
                     eventArgs.BasicProperties.MessageId);
                 await channel.BasicNackAsync(
                     eventArgs.DeliveryTag,
