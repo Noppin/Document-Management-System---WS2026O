@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using RabbitMQ.Client;
+using DocumentManagementSystem.Storage;
+using Minio;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,10 +15,23 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ArgumentExceptionHandler>();
 builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
 builder.Services.AddExceptionHandler<DocumentQueueExceptionHandler>();
+builder.Services.AddExceptionHandler<DocumentStorageExceptionHandler>();
 var connectionString = builder.Configuration.GetConnectionString("DocumentManagementDb")
 	?? throw new InvalidOperationException("Connection string 'DocumentManagementDb' is not configured.");
 builder.Services.AddPersistence(connectionString);
 builder.Services.AddApplication();
+builder.Services.Configure<MinioOptions>(
+	builder.Configuration.GetSection(MinioOptions.SectionName));
+builder.Services.AddSingleton<IMinioClient>(serviceProvider =>
+{
+	var options = serviceProvider.GetRequiredService<IOptions<MinioOptions>>().Value;
+	return new MinioClient()
+		.WithEndpoint(options.Endpoint)
+		.WithCredentials(options.AccessKey, options.SecretKey)
+		.WithSSL(options.UseSsl)
+		.Build();
+});
+builder.Services.AddSingleton<IDocumentStorage, MinioDocumentStorage>();
 builder.Services.Configure<RabbitMqOptions>(
 	builder.Configuration.GetSection(RabbitMqOptions.SectionName));
 builder.Services.AddSingleton<IConnectionFactory>(serviceProvider =>

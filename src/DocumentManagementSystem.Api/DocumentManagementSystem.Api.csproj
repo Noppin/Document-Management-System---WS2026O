@@ -10,4 +10,7 @@
     <ProjectReference Include="..\DocumentManagementSystem.Persistence\DocumentManagementSystem.Persistence.csproj" />
     <ProjectReference Include="..\DocumentManagementSystem.Messaging\DocumentManagementSystem.Messaging.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DocumentManagementSystem.Storage\DocumentManagementSystem.Storage.csproj" />
+  </ItemGroup>
 </Project>

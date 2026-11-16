@@ -8,4 +8,7 @@
     <ProjectReference Include="..\DocumentManagementSystem.Domain\DocumentManagementSystem.Domain.csproj" />
     <ProjectReference Include="..\DocumentManagementSystem.Messaging\DocumentManagementSystem.Messaging.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DocumentManagementSystem.Storage\DocumentManagementSystem.Storage.csproj" />
+  </ItemGroup>
 </Project>

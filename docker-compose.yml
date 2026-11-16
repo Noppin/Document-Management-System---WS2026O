@@ -47,6 +47,11 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DocumentManagementDb: Host=postgres;Port=5432;Database=document_management;Username=postgres;Password=postgres
       Keycloak__Authority: http://keycloak:8080/realms/dms
+      Minio__Endpoint: minio:9000
+      Minio__AccessKey: dms
+      Minio__SecretKey: dmsminio123
+      Minio__BucketName: documents
+      Minio__UseSsl: "false"
       RabbitMq__HostName: rabbitmq
       RabbitMq__Port: 5672
       RabbitMq__UserName: dms
@@ -57,6 +62,8 @@ services:
       RabbitMq__DeadLetterExchangeName: dms.events.dlx
       RabbitMq__DeadLetterQueueName: dms.document.ocr.dead
     depends_on:
+      minio:
+        condition: service_started
       postgres:
         condition: service_healthy
       minio:
