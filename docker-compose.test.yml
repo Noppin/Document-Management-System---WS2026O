@@ -1,0 +1,29 @@
+# Isolated local/CI ports. Always use a separate project: docker compose -p dms49-check
+# -f docker-compose.yml -f docker-compose.test.yml up --build --wait
+services:
+  frontend:
+    ports: !override
+      - "127.0.0.1:18080:80"
+  api:
+    ports:
+      - "127.0.0.1:18081:8080"
+  keycloak:
+    environment:
+      KC_HOSTNAME: http://localhost:18180
+    ports: !override
+      - "127.0.0.1:18180:8080"
+  minio:
+    ports: !override
+      - "127.0.0.1:19000:9000"
+  elasticsearch:
+    ports:
+      - "127.0.0.1:19200:9200"
+  rabbitmq:
+    ports: !override
+      - "127.0.0.1:15673:15672"
+  kibana:
+    ports: !override
+      - "127.0.0.1:15602:5601"
+  logstash:
+    ports: !override
+      - "127.0.0.1:15045:5044"

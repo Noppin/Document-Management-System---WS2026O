@@ -12,6 +12,63 @@ public sealed class ElasticsearchDocumentIndex(
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly ElasticsearchOptions _options = options.Value;
+    private readonly SemaphoreSlim _initializationLock = new(1, 1);
+    private bool _initialized;
+
+    private async Task EnsureIndexAsync(CancellationToken cancellationToken)
+    {
+        await _initializationLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_initialized) return;
+
+            var mappings = new
+            {
+                properties = new
+                {
+                    documentId = new { type = "keyword" },
+                    fileName = new { type = "text" },
+                    content = new { type = "text" },
+                    indexedAt = new { type = "date" }
+                }
+            };
+
+            using var create = await client.PutAsJsonAsync(
+                _options.IndexName, new { mappings }, JsonOptions, cancellationToken);
+            if (!create.IsSuccessStatusCode)
+            {
+                var body = await create.Content.ReadAsStringAsync(cancellationToken);
+                // Another worker or a previous deployment may already have created the index.
+                using var error = JsonDocument.Parse(body);
+                if (create.StatusCode != System.Net.HttpStatusCode.BadRequest ||
+                    !error.RootElement.TryGetProperty("error", out var details) ||
+                    !details.TryGetProperty("type", out var type) ||
+                    type.GetString() != "resource_already_exists_exception")
+                    throw new SearchIndexException($"Could not create search index: {(int)create.StatusCode}");
+
+                using var update = await client.PutAsJsonAsync(
+                    // Old dynamically-created indices map documentId as text. Keep that
+                    // compatible type: document identity/upserts use _id, not this field.
+                    $"{_options.IndexName}/_mapping", new
+                    {
+                        properties = new
+                        {
+                            fileName = new { type = "text" },
+                            content = new { type = "text" },
+                            indexedAt = new { type = "date" }
+                        }
+                    }, JsonOptions, cancellationToken);
+                if (!update.IsSuccessStatusCode)
+                    throw new SearchIndexException($"Could not apply search mapping: {(int)update.StatusCode}");
+            }
+
+            _initialized = true;
+        }
+        finally
+        {
+            _initializationLock.Release();
+        }
+    }
 
     public async Task IndexAsync(
         SearchDocument document,
@@ -19,6 +76,7 @@ public sealed class ElasticsearchDocumentIndex(
     {
         try
         {
+            await EnsureIndexAsync(cancellationToken);
             using var response = await client.PutAsJsonAsync(
                 $"{_options.IndexName}/_doc/{document.DocumentId}",
                 document,
@@ -116,7 +174,8 @@ public sealed class ElasticsearchDocumentIndex(
                     multi_match = new
                     {
                         query = query.Trim(),
-                        fields = new[] { "fileName^3", "content" }
+                        fields = new[] { "fileName^3", "content" },
+                        fuzziness = "AUTO"
                     }
                 }
             };

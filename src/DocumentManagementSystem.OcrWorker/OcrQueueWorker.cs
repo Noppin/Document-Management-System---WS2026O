@@ -52,7 +52,9 @@ public sealed class OcrQueueWorker(
         };
 
         await using var connection = await factory.CreateConnectionAsync(stoppingToken);
-        await using var channel = await connection.CreateChannelAsync(cancellationToken: stoppingToken);
+        await using var channel = await connection.CreateChannelAsync(
+            new CreateChannelOptions(publisherConfirmationsEnabled: true, publisherConfirmationTrackingEnabled: true),
+            stoppingToken);
 
         await RabbitMqTopology.DeclareConsumerTopologyAsync(channel, _options, stoppingToken);
         await channel.BasicQosAsync(0, 1, false, stoppingToken);
@@ -94,18 +96,19 @@ public sealed class OcrQueueWorker(
                     requeue: false,
                     cancellationToken: stoppingToken);
             }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // Closing the channel returns the unacknowledged delivery to RabbitMQ.
+            }
             catch (Exception exception)
             {
                 logger.LogError(
                     exception,
-                    "OCR worker failed while handling document {DocumentId} (message {MessageId}); message will be requeued",
+                    "OCR worker failed while handling document {DocumentId} (message {MessageId}); applying bounded retry policy",
                     message?.DocumentId,
                     eventArgs.BasicProperties.MessageId);
-                await channel.BasicNackAsync(
-                    eventArgs.DeliveryTag,
-                    multiple: false,
-                    requeue: true,
-                    cancellationToken: stoppingToken);
+                await RabbitMqProcessingRetry.HandleAsync(
+                    channel, eventArgs, _options.QueueName, _options, logger, stoppingToken);
             }
         };
 

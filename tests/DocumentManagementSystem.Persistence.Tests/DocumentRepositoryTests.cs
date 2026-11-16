@@ -1,3 +1,4 @@
+// Mit AI geschrieben (Testanpassungen).
 using DocumentManagementSystem.Domain.Entities;
 using DocumentManagementSystem.Persistence.Entities;
 using DocumentManagementSystem.TestHelpers;
@@ -26,7 +27,6 @@ public sealed class DocumentRepositoryTests
         Assert.Equal(document.FileName, loaded.FileName);
         Assert.Equal(document.ContentType, loaded.ContentType);
         Assert.Equal(document.FileSize, loaded.FileSize);
-        Assert.Equal(document.Content, loaded.Content);
     }
 
     [Fact]
@@ -123,7 +123,6 @@ public sealed class DocumentRepositoryTests
         FileName = "sample.pdf",
         ContentType = "application/pdf",
         FileSize = 12,
-        Content = "%PDF-1.4"u8.ToArray(),
         CreatedAt = createdAt ?? DateTimeOffset.UtcNow
     };
 }

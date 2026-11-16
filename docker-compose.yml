@@ -23,10 +23,18 @@ services:
       - "9001:9001"
     volumes:
       - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     restart: unless-stopped
 
   rabbitmq:
     image: rabbitmq:4.1-management
+    hostname: rabbitmq
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: dms
       RABBITMQ_DEFAULT_PASS: dms
@@ -102,7 +110,7 @@ services:
       RabbitMq__IndexDeadLetterQueueName: dms.document.index.dead
     depends_on:
       minio:
-        condition: service_started
+        condition: service_healthy
       elasticsearch:
         condition: service_healthy
       postgres:
@@ -138,7 +146,7 @@ services:
       rabbitmq:
         condition: service_healthy
       minio:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
 
   indexing-worker:
@@ -190,6 +198,7 @@ services:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm.json:ro
 
 volumes:
+  rabbitmq-data:
   postgres-data:
   minio-data:
   elasticsearch-data:

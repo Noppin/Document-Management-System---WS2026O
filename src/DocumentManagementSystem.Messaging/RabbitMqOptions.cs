@@ -17,4 +17,6 @@ public sealed class RabbitMqOptions
     public string IndexRoutingKey { get; init; } = "document.ocr.completed";
     public string IndexDeadLetterExchangeName { get; init; } = "dms.events.index.dlx";
     public string IndexDeadLetterQueueName { get; init; } = "dms.document.index.dead";
+    public int MaxProcessingRetries { get; init; } = 3;
+    public int ProcessingRetryDelayMilliseconds { get; init; } = 1000;
 }

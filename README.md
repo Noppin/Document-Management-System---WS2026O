@@ -3,6 +3,9 @@
 React frontend + ASP.NET Core Web API for document uploads, with PostgreSQL for
 metadata and Keycloak for authentication.
 
+Sprint-4 hardening, migration precautions and isolated integration-test commands:
+[DMS-49 progress](docs/DMS-49-progress.md).
+
 ## Project management
 
 Tickets and task tracking are managed in Jira:

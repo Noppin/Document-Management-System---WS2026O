@@ -11,7 +11,6 @@ public sealed class MappingProfile : Profile
         CreateMap<DocumentStatus, DocumentResponseStatus>()
             .ConvertUsing(status => (DocumentResponseStatus)status);
         CreateMap<Document, DocumentResponse>();
-        CreateMap<Document, DocumentDownloadResponse>();
         CreateMap<CreateCollectionRequest, Collection>()
             .ForMember(destination => destination.Name, options => options.MapFrom(source => source.Name.Trim()))
             .ForMember(destination => destination.Id, options => options.Ignore())

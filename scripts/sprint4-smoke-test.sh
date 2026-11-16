@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
+# Mit AI geschrieben (Testanpassungen).
 # Sprint-4 MUST-HAVE smoke test:
 # HelloWorld.pdf -> MinIO -> OCR -> RabbitMQ indexing queue -> Elasticsearch -> search API.
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
+
+# A separate Compose project/file can be selected through COMPOSE_PROJECT_NAME/COMPOSE_FILE.
 
 API_URL="${API_URL:-http://localhost/api}"
 KEYCLOAK_URL="${KEYCLOAK_URL:-http://localhost:8180}"
@@ -47,13 +50,21 @@ for service in postgres minio rabbitmq elasticsearch api ocr-worker indexing-wor
   fi
 done
 
-TOKEN="$(curl -s --max-time 15 \
+TOKEN=""
+for ((attempt = 0; attempt < WAIT_SECONDS; attempt += 3)); do
+  TOKEN="$(curl -s --max-time 15 \
   --request POST \
   --data-urlencode "grant_type=password" \
   --data-urlencode "client_id=frontend" \
   --data-urlencode "username=alice" \
   --data-urlencode "password=password" \
   "$TOKEN_URL" 2>/dev/null | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')"
+  if [ -n "$TOKEN" ] && curl -fs --max-time 5 "$API_URL/health" >/dev/null 2>&1; then
+    break
+  fi
+  TOKEN=""
+  sleep 3
+done
 
 if [ -z "$TOKEN" ]; then
   bad "could not obtain Keycloak access token"

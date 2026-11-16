@@ -6,6 +6,34 @@ info:
 servers:
   - url: http://localhost:8080
 paths:
+  /search:
+    get:
+      tags: [Search]
+      summary: Full-text and fuzzy search across OCR content
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: query
+          required: true
+          description: Non-blank search term; minor spelling differences are tolerated.
+          schema: { type: string, minLength: 1, maxLength: 200 }
+      responses:
+        '200':
+          description: Matching document metadata, or an empty array
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [id, fileName]
+                  properties:
+                    id: { type: string, format: uuid }
+                    fileName: { type: string }
+        '400': { description: Missing, blank or oversized search query }
+        '401': { description: Missing or invalid access token }
+        '503': { description: Search service temporarily unavailable }
   /health:
     get:
       summary: Health check
@@ -165,6 +193,11 @@ paths:
         '204': { description: Document removed }
         '404': { description: Collection or document link not found }
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     DocumentResponse:
       type: object

@@ -1,3 +1,4 @@
+// Mit AI geschrieben (Testergänzungen und -anpassungen).
 using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Application.Services;
 using DocumentManagementSystem.Application.Validation;
@@ -31,6 +32,7 @@ public sealed class DocumentServiceTests
 
         using var context = _database.CreateContext();
         Assert.Single(new DocumentRepository(context, TestMapper.Create()).GetAll());
+        Assert.Null(context.Documents.Single().Content);
     }
 
 
@@ -93,6 +95,38 @@ public sealed class DocumentServiceTests
             () => service.UploadAsync(CreateUploadRequest("invoice.pdf")));
 
         Assert.Empty(storage.Documents);
+    }
+
+    [Fact]
+    public async Task UploadAsync_StorageFails_DoesNotPersistOrPublish()
+    {
+        var queue = new RecordingDocumentQueuePublisher();
+        var storage = new InMemoryDocumentStorage { FailStore = true };
+        await Assert.ThrowsAsync<DocumentStorageException>(() =>
+            CreateService(queue, storage).UploadAsync(CreateUploadRequest("a.pdf")));
+        Assert.Empty(queue.Messages);
+        using var context = _database.CreateContext();
+        Assert.Empty(context.Documents);
+    }
+
+    [Fact]
+    public async Task UploadAsync_RollbackStorageFails_PreservesOriginalFailureAndRemovesMetadata()
+    {
+        var storage = new InMemoryDocumentStorage { FailDelete = true };
+        await Assert.ThrowsAsync<DocumentQueueException>(() =>
+            CreateService(new ThrowingDocumentQueuePublisher(), storage).UploadAsync(CreateUploadRequest("a.pdf")));
+        using var context = _database.CreateContext();
+        Assert.Empty(context.Documents);
+        // Failed cleanup is logged, not falsely reported as a successful rollback.
+        Assert.Single(storage.Documents);
+    }
+
+    [Fact]
+    public async Task Download_StorageFails_PropagatesStorageException()
+    {
+        var id = SeedDocument("a.pdf");
+        await Assert.ThrowsAsync<DocumentStorageException>(() =>
+            CreateService(storage: new InMemoryDocumentStorage { FailRead = true }).GetDownloadAsync(id));
     }
 
     [Fact]
@@ -246,7 +280,6 @@ public sealed class DocumentServiceTests
             FileName = fileName,
             ContentType = "application/pdf",
             FileSize = 8,
-            Content = "%PDF-1.4"u8.ToArray(),
             CreatedAt = createdAt ?? DateTimeOffset.UtcNow
         };
 
@@ -274,6 +307,9 @@ public sealed class DocumentServiceTests
     private sealed class InMemoryDocumentStorage : IDocumentStorage
     {
         public Dictionary<Guid, byte[]> Documents { get; } = [];
+        public bool FailStore { get; init; }
+        public bool FailRead { get; init; }
+        public bool FailDelete { get; init; }
 
         public async Task StoreAsync(
             Guid documentId,
@@ -282,16 +318,19 @@ public sealed class DocumentServiceTests
             string contentType,
             CancellationToken cancellationToken = default)
         {
+            if (FailStore) throw new DocumentStorageException("Storage unavailable", new IOException());
             using var buffer = new MemoryStream();
             await content.CopyToAsync(buffer, cancellationToken);
             Documents[documentId] = buffer.ToArray();
         }
 
         public Task<byte[]> GetAsync(Guid documentId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(Documents[documentId]);
+            FailRead ? Task.FromException<byte[]>(new DocumentStorageException("Read failed", new IOException()))
+                : Task.FromResult(Documents[documentId]);
 
         public Task DeleteAsync(Guid documentId, CancellationToken cancellationToken = default)
         {
+            if (FailDelete) throw new DocumentStorageException("Cleanup failed", new IOException());
             Documents.Remove(documentId);
             return Task.CompletedTask;
         }

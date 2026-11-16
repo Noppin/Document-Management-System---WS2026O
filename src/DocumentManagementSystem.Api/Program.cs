@@ -1,4 +1,5 @@
 using DocumentManagementSystem.Persistence;
+using DocumentManagementSystem.Api;
 using DocumentManagementSystem.Application;
 using DocumentManagementSystem.Api.ExceptionHandling;
 using DocumentManagementSystem.Messaging;
@@ -34,6 +35,7 @@ builder.Services.AddSingleton<IMinioClient>(serviceProvider =>
 		.Build();
 });
 builder.Services.AddSingleton<IDocumentStorage, MinioDocumentStorage>();
+builder.Services.AddScoped<LegacyDocumentContentMigration>();
 builder.Services.Configure<ElasticsearchOptions>(
 	builder.Configuration.GetSection(ElasticsearchOptions.SectionName));
 builder.Services.AddSingleton<IDocumentSearchIndex>(serviceProvider =>
@@ -104,6 +106,11 @@ var app = builder.Build();
 app.UseExceptionHandler();
 
 app.Services.ApplyMigrations();
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    await scope.ServiceProvider.GetRequiredService<LegacyDocumentContentMigration>()
+        .RunAsync(app.Lifetime.ApplicationStopping);
+}
 
 app.UseSwagger();
 app.UseSwaggerUI();

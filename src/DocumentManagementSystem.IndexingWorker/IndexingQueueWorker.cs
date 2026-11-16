@@ -52,7 +52,9 @@ public sealed class IndexingQueueWorker(
         };
 
         await using var connection = await factory.CreateConnectionAsync(stoppingToken);
-        await using var channel = await connection.CreateChannelAsync(cancellationToken: stoppingToken);
+        await using var channel = await connection.CreateChannelAsync(
+            new CreateChannelOptions(publisherConfirmationsEnabled: true, publisherConfirmationTrackingEnabled: true),
+            stoppingToken);
 
         await RabbitMqTopology.DeclareIndexingConsumerTopologyAsync(channel, _options, stoppingToken);
         await channel.BasicQosAsync(0, 1, false, stoppingToken);
@@ -84,17 +86,18 @@ public sealed class IndexingQueueWorker(
                     requeue: false,
                     cancellationToken: stoppingToken);
             }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // Closing the channel returns the unacknowledged delivery to RabbitMQ.
+            }
             catch (Exception exception)
             {
                 logger.LogError(
                     exception,
-                    "Indexing worker failed; message {MessageId} will be requeued",
+                    "Indexing worker failed; applying bounded retry policy to message {MessageId}",
                     eventArgs.BasicProperties.MessageId);
-                await channel.BasicNackAsync(
-                    eventArgs.DeliveryTag,
-                    multiple: false,
-                    requeue: true,
-                    cancellationToken: stoppingToken);
+                await RabbitMqProcessingRetry.HandleAsync(
+                    channel, eventArgs, _options.IndexQueueName, _options, logger, stoppingToken);
             }
         };
 

@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DocumentManagementSystem.Api\DocumentManagementSystem.Api.csproj" />
+    <ProjectReference Include="..\DocumentManagementSystem.TestHelpers\DocumentManagementSystem.TestHelpers.csproj" />
   </ItemGroup>
 
   <ItemGroup>

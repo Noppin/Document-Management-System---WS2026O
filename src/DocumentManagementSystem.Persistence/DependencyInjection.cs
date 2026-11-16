@@ -14,7 +14,8 @@ public static class DependencyInjection
         services.AddLogging();
         services.AddAutoMapper(configuration => configuration.AddProfile<PersistenceMappingProfile>());
         services.AddDbContext<DocumentManagementDbContext>(options =>
-            options.UseNpgsql(connectionString));
+            options.UseNpgsql(connectionString, postgres =>
+                postgres.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null)));
         services.AddScoped<IDocumentRepository, DocumentRepository>();
         services.AddScoped<ICollectionRepository, CollectionRepository>();
         return services;

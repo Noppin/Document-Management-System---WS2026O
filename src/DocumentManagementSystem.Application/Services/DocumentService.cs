@@ -34,7 +34,6 @@ public sealed class DocumentService(
             FileName = Path.GetFileName(request.File.FileName),
             ContentType = request.File.ContentType,
             FileSize = request.File.Length,
-            Content = content,
             Status = DocumentStatus.Queued
         };
 
@@ -68,13 +67,23 @@ public sealed class DocumentService(
         }
         catch
         {
-            documents.Delete(document.Id);
+            // Cleanup must still run when the original request has been cancelled. Keep the
+            // original failure, even if one cleanup step fails, and attempt both resources.
+            try
+            {
+                documents.Delete(document.Id);
+            }
+            catch (Exception cleanupException)
+            {
+                logger.LogError(cleanupException, "Failed to remove metadata for document {DocumentId} during rollback", document.Id);
+            }
 
             try
             {
-                await storage.DeleteAsync(document.Id, cancellationToken);
+                using var cleanupTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                await storage.DeleteAsync(document.Id, cleanupTimeout.Token);
             }
-            catch (DocumentStorageException cleanupException)
+            catch (Exception cleanupException)
             {
                 logger.LogError(
                     cleanupException,
@@ -83,7 +92,7 @@ public sealed class DocumentService(
             }
 
             logger.LogWarning(
-                "Rolled back document {DocumentId} after the upload pipeline failed",
+                "Attempted rollback for document {DocumentId} after the upload pipeline failed; check cleanup errors",
                 document.Id);
 
             throw;

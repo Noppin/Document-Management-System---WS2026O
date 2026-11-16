@@ -9,6 +9,7 @@ public sealed class PersistenceMappingProfile : Profile
     public PersistenceMappingProfile()
     {
         CreateMap<Document, DocumentEntity>()
+            .ForMember(destination => destination.Content, options => options.Ignore())
             .ForMember(destination => destination.Status, options => options.MapFrom(source => (int)source.Status))
             .ForMember(destination => destination.CollectionDocuments, options => options.Ignore());
         CreateMap<DocumentEntity, Document>()
