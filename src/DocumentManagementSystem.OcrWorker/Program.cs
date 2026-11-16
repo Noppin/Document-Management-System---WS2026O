@@ -40,6 +40,7 @@ builder.Services.AddSingleton<IConnectionFactory>(serviceProvider =>
 });
 builder.Services.AddSingleton<OcrMessageProcessor>();
 builder.Services.AddSingleton<IOcrEngine, TesseractOcrEngine>();
+builder.Services.AddSingleton<IOcrResultQueuePublisher, RabbitMqOcrResultQueuePublisher>();
 builder.Services.AddSingleton<IOcrDocumentProcessor, OcrDocumentProcessor>();
 builder.Services.AddHostedService<OcrQueueWorker>();
 
