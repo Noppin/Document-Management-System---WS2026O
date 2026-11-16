@@ -1,5 +1,5 @@
 import { apiRequest } from '../../api/http';
-import type { DocumentDto } from './types';
+import type { DocumentDto, DocumentSearchResultDto } from './types';
 
 export function getDocuments() {
   return apiRequest<DocumentDto[]>('/documents');
@@ -43,4 +43,10 @@ export async function downloadDocument(id: string, fileName: string): Promise<vo
 
   link.remove();
   window.URL.revokeObjectURL(url);
+}
+
+export function searchDocuments(query: string) {
+  return apiRequest<DocumentSearchResultDto[]>(
+    `/search?query=${encodeURIComponent(query)}`
+  );
 }

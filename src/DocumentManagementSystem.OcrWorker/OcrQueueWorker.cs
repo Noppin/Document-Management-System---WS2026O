@@ -1,3 +1,4 @@
+using DocumentManagementSystem.Storage;
 using DocumentManagementSystem.Messaging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
@@ -78,13 +79,13 @@ public sealed class OcrQueueWorker(
                     requeue: false,
                     cancellationToken: stoppingToken);
             }
-            catch (OcrExecutionException exception)
+            catch (Exception exception) when (exception is OcrExecutionException or DocumentNotFoundException)
             {
-                // Ghostscript/Tesseract failures are deterministic for a given PDF;
-                // requeueing would retry the same document forever.
+                // Broken PDFs and PDFs missing from MinIO (e.g. document deleted before OCR ran)
+                // fail the same way on every attempt; requeueing would retry them forever.
                 logger.LogError(
                     exception,
-                    "OCR failed for document {DocumentId} (message {MessageId}); moving message to the dead-letter queue",
+                    "OCR failed permanently for document {DocumentId} (message {MessageId}); moving message to the dead-letter queue",
                     message?.DocumentId,
                     eventArgs.BasicProperties.MessageId);
                 await channel.BasicNackAsync(

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Minio;
 using Minio.DataModel.Args;
+using Minio.Exceptions;
 
 namespace DocumentManagementSystem.Storage;
 
@@ -77,6 +78,12 @@ public sealed class MinioDocumentStorage(
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
+        }
+        catch (ObjectNotFoundException exception)
+        {
+            throw new DocumentNotFoundException(
+                $"Document {documentId} does not exist in MinIO.",
+                exception);
         }
         catch (Exception exception)
         {
