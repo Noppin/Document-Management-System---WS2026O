@@ -6,6 +6,7 @@ namespace DocumentManagementSystem.OcrWorker;
 public sealed class OcrDocumentProcessor(
     IDocumentStorage storage,
     IOcrEngine ocrEngine,
+    IOcrResultQueuePublisher resultPublisher,
     ILogger<OcrDocumentProcessor> logger) : IOcrDocumentProcessor
 {
     public async Task<string> ProcessAsync(
@@ -30,6 +31,15 @@ public sealed class OcrDocumentProcessor(
             "OCR finished for document {DocumentId}; recognized {CharacterCount} characters",
             message.DocumentId,
             text.Length);
+
+        await resultPublisher.PublishAsync(
+            new OcrCompletedMessage(
+                MessageId: Guid.NewGuid(),
+                DocumentId: message.DocumentId,
+                FileName: message.FileName,
+                Text: text,
+                CompletedAt: DateTimeOffset.UtcNow),
+            cancellationToken);
 
         return text;
     }
