@@ -57,13 +57,13 @@ async function resolveAuthorizationHeader(): Promise<Record<string, string>> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+async function send(path: string, accept: string, init?: RequestInit): Promise<Response> {
   const authorization = await resolveAuthorizationHeader();
 
   const response = await fetch(`/api${path}`, {
     ...init,
     headers: {
-      Accept: 'application/json',
+      Accept: accept,
       ...authorization,
       ...init?.headers,
     },
@@ -77,9 +77,21 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
     throw await readError(response);
   }
 
+  return response;
+}
+
+export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await send(path, 'application/json', init);
+
   if (response.status === 204) {
     return undefined as T;
   }
 
   return await response.json() as T;
+}
+
+/** Authenticated request for binary content such as file downloads. */
+export async function apiBlobRequest(path: string, init?: RequestInit): Promise<Blob> {
+  const response = await send(path, '*/*', init);
+  return await response.blob();
 }
