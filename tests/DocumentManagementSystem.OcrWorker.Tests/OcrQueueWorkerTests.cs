@@ -165,6 +165,26 @@ public sealed class OcrQueueWorkerTests
     }
 
     [Fact]
+    public async Task Worker_DocumentMissingInStorage_RejectsWithoutRequeue()
+    {
+        var channel = Substitute.For<IChannel>();
+        IAsyncBasicConsumer? captured = null;
+        CaptureConsumer(channel, consumer => captured = consumer);
+        using var worker = CreateWorker(CreateBroker(channel), new MissingDocumentProcessor());
+        await worker.StartAsync(CancellationToken.None);
+
+        var consumer = await WaitForConsumerAsync(() => captured);
+        await DeliverAsync(consumer, JsonSerializer.SerializeToUtf8Bytes(CreateMessage()));
+
+        await channel.Received(1).BasicNackAsync(
+            DeliveryTag,
+            false,
+            false,
+            Arg.Any<CancellationToken>());
+        await worker.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
     public async Task Worker_BrokerUnavailable_KeepsRunningAndStopsCleanly()
     {
         var factory = Substitute.For<IConnectionFactory>();
@@ -185,6 +205,16 @@ public sealed class OcrQueueWorkerTests
             DocumentUploadedMessage message,
             CancellationToken cancellationToken = default) =>
             Task.FromResult("recognized text");
+    }
+
+    private sealed class MissingDocumentProcessor : IOcrDocumentProcessor
+    {
+        public Task<string> ProcessAsync(
+            DocumentUploadedMessage message,
+            CancellationToken cancellationToken = default) =>
+            throw new DocumentManagementSystem.Storage.DocumentNotFoundException(
+                $"Document {message.DocumentId} does not exist in MinIO.",
+                new InvalidOperationException("object not found"));
     }
 
     private sealed class FailingOcrDocumentProcessor : IOcrDocumentProcessor

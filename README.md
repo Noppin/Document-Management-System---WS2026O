@@ -42,12 +42,13 @@ docker compose up -d --build
 ```
 
 `docker compose build` on its own is the required final check before a sprint is
-handed in: every container image (`api`, `ocr-worker`, `frontend`) has to build
+handed in: every container image (`api`, `ocr-worker`, `indexing-worker`, `frontend`) has to build
 successfully.
 
-This starts PostgreSQL, RabbitMQ, the REST API, the OCR worker, the React frontend
-and Keycloak. Wait about a minute on the first start (Keycloak imports the realm),
-then open:
+This starts PostgreSQL, MinIO, RabbitMQ, Elasticsearch, Logstash, Kibana, the REST
+API, the OCR worker, the indexing worker, the React frontend and Keycloak (see
+[Sprint 4](#sprint-4-minio-ocr-and-elasticsearch-search)). Wait about a minute on the
+first start (Keycloak imports the realm, Elasticsearch becomes healthy), then open:
 
 ```text
 http://localhost/
@@ -118,8 +119,7 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost/api/documents
 Sprint 3 adds asynchronous OCR processing. The REST API stores the uploaded
 document and publishes an `DocumentUploadedMessage` to RabbitMQ; a separate
 .NET worker service consumes that message and will run the OCR later.
-**No real OCR is performed in Sprint 3** — the worker deserializes the message,
-logs the document and acknowledges it.
+**Sprint 3 originally stopped after queue consumption. Sprint 4 extends this worker with MinIO retrieval, Ghostscript rendering and Tesseract OCR.**
 
 ```text
 POST /api/documents
@@ -262,3 +262,83 @@ GitHub Actions in [.github/workflows](.github/workflows):
 - `ci.yml` builds and tests backend and frontend on pushes/PRs to `dev` and `main`.
 - `sprint-release.yml` creates a release when a `sprint-<n>` tag is pushed. The
   tagged commit must be on `main`; GitHub then attaches the source zip.
+
+
+## Sprint 4: MinIO, OCR and Elasticsearch search
+
+Sprint 4 completes the asynchronous processing pipeline:
+
+```text
+React upload
+    |
+    v
+REST API ---- PDF ----> MinIO
+    |
+    | DocumentUploadedMessage
+    v
+RabbitMQ (dms.document.ocr)
+    |
+    v
+OCR worker -- fetch PDF --> MinIO
+    |
+    | Ghostscript renders PDF pages
+    | Tesseract recognizes text
+    v
+OcrCompletedMessage
+    |
+    v
+RabbitMQ (dms.document.index)
+    |
+    v
+Indexing worker
+    |
+    v
+Elasticsearch <---- GET /api/search?query=Hello ---- React dashboard
+```
+
+Additional services:
+
+| Compose service | Purpose |
+| --- | --- |
+| `minio` | S3-compatible storage for original PDF documents |
+| `ocr-worker` | Downloads PDFs from MinIO, renders with Ghostscript and runs Tesseract |
+| `indexing-worker` | Consumes OCR results and indexes text into Elasticsearch |
+| `elasticsearch` | Full-text OCR index |
+| `logstash` | ELK pipeline container required by the Sprint-4 stack |
+| `kibana` | Elasticsearch inspection UI on port 5601 |
+
+MinIO console: `http://localhost:9001` (`dms` / `dmsminio123`)
+
+RabbitMQ management: `http://localhost:15672` (`dms` / `dms`)
+
+Kibana: `http://localhost:5601`
+
+### Sprint-4 MUST-HAVE verification
+
+Build and start the complete application:
+
+```bash
+docker compose build
+docker compose up -d
+docker compose ps
+```
+
+Then run:
+
+```bash
+./scripts/sprint4-smoke-test.sh
+```
+
+On Windows (Git Bash), where the checkout has CRLF line endings, run
+`bash -o igncr scripts/sprint4-smoke-test.sh` instead.
+
+The script uploads `http/HelloWorld.pdf`, waits for the OCR and indexing workers,
+and executes `GET /api/search?query=Hello`. The test succeeds only when
+`HelloWorld.pdf` is returned by the search endpoint.
+
+The same required flow can be checked through the UI:
+
+1. Open `http://localhost/`.
+2. Upload `HelloWorld.pdf`.
+3. Search for `Hello` in the dashboard full-text search.
+4. `HelloWorld.pdf` must appear as a search result.
