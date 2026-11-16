@@ -69,8 +69,8 @@ public sealed class MinioDocumentStorage(
             var args = new GetObjectArgs()
                 .WithBucket(_options.BucketName)
                 .WithObject(DocumentObjectName.For(documentId))
-                .WithFileName(tempPath);
-
+                .WithFile(tempPath);
+            
             await client.GetObjectAsync(args, cancellationToken: cancellationToken);
             return await File.ReadAllBytesAsync(tempPath, cancellationToken);
         }
