@@ -38,6 +38,40 @@ services:
       timeout: 5s
       retries: 12
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.3
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:9.5.3
+    volumes:
+      - ./infra/logstash/pipeline:/usr/share/logstash/pipeline:ro
+    ports:
+      - "5044:5044"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.5.3
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
   api:
     build:
       context: .
@@ -103,6 +137,30 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  indexing-worker:
+    build:
+      context: .
+      dockerfile: src/DocumentManagementSystem.IndexingWorker/Dockerfile
+    environment:
+      RabbitMq__HostName: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__UserName: dms
+      RabbitMq__Password: dms
+      RabbitMq__QueueName: dms.document.ocr
+      RabbitMq__ExchangeName: dms.events
+      RabbitMq__RoutingKey: document.uploaded
+      RabbitMq__DeadLetterExchangeName: dms.events.dlx
+      RabbitMq__DeadLetterQueueName: dms.document.ocr.dead
+      RabbitMq__IndexQueueName: dms.document.index
+      RabbitMq__IndexRoutingKey: document.ocr.completed
+      RabbitMq__IndexDeadLetterQueueName: dms.document.index.dead
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend
@@ -128,3 +186,4 @@ services:
 volumes:
   postgres-data:
   minio-data:
+  elasticsearch-data:
