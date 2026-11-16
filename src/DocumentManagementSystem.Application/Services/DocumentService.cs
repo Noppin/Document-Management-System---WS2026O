@@ -6,6 +6,7 @@ using DocumentManagementSystem.Domain.Repositories;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 using DocumentManagementSystem.Storage;
+using DocumentManagementSystem.Search;
 
 namespace DocumentManagementSystem.Application.Services;
 
@@ -15,6 +16,7 @@ public sealed class DocumentService(
     IValidator<UploadDocumentRequest> validator,
     IDocumentQueuePublisher queuePublisher,
     IDocumentStorage storage,
+    IDocumentSearchIndex searchIndex,
     ILogger<DocumentService> logger) : IDocumentService
 {
     public async Task<DocumentResponse> UploadAsync(
@@ -124,6 +126,21 @@ public sealed class DocumentService(
         }
 
         await storage.DeleteAsync(id, cancellationToken);
-        return documents.Delete(id);
+        var deleted = documents.Delete(id);
+
+        try
+        {
+            await searchIndex.DeleteAsync(id, cancellationToken);
+        }
+        catch (SearchIndexException exception)
+        {
+            // The document itself is gone; a stale search entry must not fail the delete.
+            logger.LogWarning(
+                exception,
+                "Could not remove document {DocumentId} from the search index",
+                id);
+        }
+
+        return deleted;
     }
 }

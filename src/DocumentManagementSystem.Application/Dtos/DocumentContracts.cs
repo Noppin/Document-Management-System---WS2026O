@@ -19,3 +19,5 @@ public sealed record DocumentDownloadResponse(
     byte[] Content,
     string ContentType,
     string FileName);
+
+public sealed record DocumentSearchResponse(Guid Id, string FileName);

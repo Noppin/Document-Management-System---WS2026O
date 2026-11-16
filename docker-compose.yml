@@ -86,6 +86,8 @@ services:
       Minio__SecretKey: dmsminio123
       Minio__BucketName: documents
       Minio__UseSsl: "false"
+      Elasticsearch__Endpoint: http://elasticsearch:9200
+      Elasticsearch__IndexName: documents
       RabbitMq__HostName: rabbitmq
       RabbitMq__Port: 5672
       RabbitMq__UserName: dms
@@ -101,6 +103,8 @@ services:
     depends_on:
       minio:
         condition: service_started
+      elasticsearch:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       rabbitmq:
@@ -154,6 +158,8 @@ services:
       RabbitMq__IndexQueueName: dms.document.index
       RabbitMq__IndexRoutingKey: document.ocr.completed
       RabbitMq__IndexDeadLetterQueueName: dms.document.index.dead
+      Elasticsearch__Endpoint: http://elasticsearch:9200
+      Elasticsearch__IndexName: documents
     depends_on:
       rabbitmq:
         condition: service_healthy

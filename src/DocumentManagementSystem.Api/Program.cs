@@ -8,6 +8,7 @@ using Microsoft.OpenApi.Models;
 using RabbitMQ.Client;
 using DocumentManagementSystem.Storage;
 using Minio;
+using DocumentManagementSystem.Search;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +17,7 @@ builder.Services.AddExceptionHandler<ArgumentExceptionHandler>();
 builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
 builder.Services.AddExceptionHandler<DocumentQueueExceptionHandler>();
 builder.Services.AddExceptionHandler<DocumentStorageExceptionHandler>();
+builder.Services.AddExceptionHandler<SearchIndexExceptionHandler>();
 var connectionString = builder.Configuration.GetConnectionString("DocumentManagementDb")
 	?? throw new InvalidOperationException("Connection string 'DocumentManagementDb' is not configured.");
 builder.Services.AddPersistence(connectionString);
@@ -32,6 +34,15 @@ builder.Services.AddSingleton<IMinioClient>(serviceProvider =>
 		.Build();
 });
 builder.Services.AddSingleton<IDocumentStorage, MinioDocumentStorage>();
+builder.Services.Configure<ElasticsearchOptions>(
+	builder.Configuration.GetSection(ElasticsearchOptions.SectionName));
+builder.Services.AddSingleton<IDocumentSearchIndex>(serviceProvider =>
+{
+	var options = serviceProvider.GetRequiredService<IOptions<ElasticsearchOptions>>().Value;
+	var logger = serviceProvider.GetRequiredService<ILogger<ElasticsearchDocumentIndex>>();
+	var client = new HttpClient { BaseAddress = new Uri(options.Endpoint.TrimEnd('/') + "/") };
+	return new ElasticsearchDocumentIndex(client, Options.Create(options), logger);
+});
 builder.Services.Configure<RabbitMqOptions>(
 	builder.Configuration.GetSection(RabbitMqOptions.SectionName));
 builder.Services.AddSingleton<IConnectionFactory>(serviceProvider =>
