@@ -1,3 +1,4 @@
+// Mit AI geschrieben (Testanpassungen).
 using AutoMapper;
 using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Domain.Entities;
@@ -46,15 +47,11 @@ public sealed class MappingProfileTests : IDisposable
     }
 
     [Fact]
-    public void DocumentDownloadResponse_PreservesFileContentAndMetadata()
+    public void DocumentDownloadResponse_CannotBeCreatedFromMetadataOnly()
     {
         var document = CreateDocument();
 
-        var response = _mapper.Map<DocumentDownloadResponse>(document);
-
-        Assert.Equal(document.Content, response.Content);
-        Assert.Equal(document.ContentType, response.ContentType);
-        Assert.Equal(document.FileName, response.FileName);
+        Assert.Throws<AutoMapperMappingException>(() => _mapper.Map<DocumentDownloadResponse>(document));
     }
 
     [Fact]
@@ -113,7 +110,6 @@ public sealed class MappingProfileTests : IDisposable
     {
         FileName = "invoice.pdf",
         ContentType = "application/pdf",
-        Content = "%PDF-1.4"u8.ToArray(),
         FileSize = 8,
         Status = status,
         CreatedAt = new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero)

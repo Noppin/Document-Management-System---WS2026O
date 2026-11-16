@@ -63,7 +63,6 @@ namespace DocumentManagementSystem.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<byte[]>("Content")
-                        .IsRequired()
                         .HasColumnType("bytea");
 
                     b.Property<string>("ContentType")

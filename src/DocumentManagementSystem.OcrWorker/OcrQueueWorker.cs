@@ -1,3 +1,4 @@
+using DocumentManagementSystem.Storage;
 using DocumentManagementSystem.Messaging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
@@ -8,6 +9,7 @@ namespace DocumentManagementSystem.OcrWorker;
 public sealed class OcrQueueWorker(
     IOptions<RabbitMqOptions> options,
     OcrMessageProcessor processor,
+    IOcrDocumentProcessor documentProcessor,
     ILogger<OcrQueueWorker> logger,
     IConnectionFactory? connectionFactory = null) : BackgroundService
 {
@@ -50,7 +52,9 @@ public sealed class OcrQueueWorker(
         };
 
         await using var connection = await factory.CreateConnectionAsync(stoppingToken);
-        await using var channel = await connection.CreateChannelAsync(cancellationToken: stoppingToken);
+        await using var channel = await connection.CreateChannelAsync(
+            new CreateChannelOptions(publisherConfirmationsEnabled: true, publisherConfirmationTrackingEnabled: true),
+            stoppingToken);
 
         await RabbitMqTopology.DeclareConsumerTopologyAsync(channel, _options, stoppingToken);
         await channel.BasicQosAsync(0, 1, false, stoppingToken);
@@ -62,6 +66,7 @@ public sealed class OcrQueueWorker(
             try
             {
                 message = processor.Process(eventArgs.Body);
+                await documentProcessor.ProcessAsync(message, stoppingToken);
                 await channel.BasicAckAsync(eventArgs.DeliveryTag, false, stoppingToken);
             }
             catch (OcrMessageProcessingException exception)
@@ -76,18 +81,34 @@ public sealed class OcrQueueWorker(
                     requeue: false,
                     cancellationToken: stoppingToken);
             }
-            catch (Exception exception)
+            catch (Exception exception) when (exception is OcrExecutionException or DocumentNotFoundException)
             {
+                // Broken PDFs and PDFs missing from MinIO (e.g. document deleted before OCR ran)
+                // fail the same way on every attempt; requeueing would retry them forever.
                 logger.LogError(
                     exception,
-                    "OCR worker failed while handling document {DocumentId} (message {MessageId}); message will be requeued",
+                    "OCR failed permanently for document {DocumentId} (message {MessageId}); moving message to the dead-letter queue",
                     message?.DocumentId,
                     eventArgs.BasicProperties.MessageId);
                 await channel.BasicNackAsync(
                     eventArgs.DeliveryTag,
                     multiple: false,
-                    requeue: true,
+                    requeue: false,
                     cancellationToken: stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // Closing the channel returns the unacknowledged delivery to RabbitMQ.
+            }
+            catch (Exception exception)
+            {
+                logger.LogError(
+                    exception,
+                    "OCR worker failed while handling document {DocumentId} (message {MessageId}); applying bounded retry policy",
+                    message?.DocumentId,
+                    eventArgs.BasicProperties.MessageId);
+                await RabbitMqProcessingRetry.HandleAsync(
+                    channel, eventArgs, _options.QueueName, _options, logger, stoppingToken);
             }
         };
 

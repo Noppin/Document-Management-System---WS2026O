@@ -1,4 +1,5 @@
 using DocumentManagementSystem.Persistence;
+using DocumentManagementSystem.Api;
 using DocumentManagementSystem.Application;
 using DocumentManagementSystem.Api.ExceptionHandling;
 using DocumentManagementSystem.Messaging;
@@ -6,6 +7,9 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using RabbitMQ.Client;
+using DocumentManagementSystem.Storage;
+using Minio;
+using DocumentManagementSystem.Search;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,10 +17,34 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ArgumentExceptionHandler>();
 builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
 builder.Services.AddExceptionHandler<DocumentQueueExceptionHandler>();
+builder.Services.AddExceptionHandler<DocumentStorageExceptionHandler>();
+builder.Services.AddExceptionHandler<SearchIndexExceptionHandler>();
 var connectionString = builder.Configuration.GetConnectionString("DocumentManagementDb")
 	?? throw new InvalidOperationException("Connection string 'DocumentManagementDb' is not configured.");
 builder.Services.AddPersistence(connectionString);
 builder.Services.AddApplication();
+builder.Services.Configure<MinioOptions>(
+	builder.Configuration.GetSection(MinioOptions.SectionName));
+builder.Services.AddSingleton<IMinioClient>(serviceProvider =>
+{
+	var options = serviceProvider.GetRequiredService<IOptions<MinioOptions>>().Value;
+	return new MinioClient()
+		.WithEndpoint(options.Endpoint)
+		.WithCredentials(options.AccessKey, options.SecretKey)
+		.WithSSL(options.UseSsl)
+		.Build();
+});
+builder.Services.AddSingleton<IDocumentStorage, MinioDocumentStorage>();
+builder.Services.AddScoped<LegacyDocumentContentMigration>();
+builder.Services.Configure<ElasticsearchOptions>(
+	builder.Configuration.GetSection(ElasticsearchOptions.SectionName));
+builder.Services.AddSingleton<IDocumentSearchIndex>(serviceProvider =>
+{
+	var options = serviceProvider.GetRequiredService<IOptions<ElasticsearchOptions>>().Value;
+	var logger = serviceProvider.GetRequiredService<ILogger<ElasticsearchDocumentIndex>>();
+	var client = new HttpClient { BaseAddress = new Uri(options.Endpoint.TrimEnd('/') + "/") };
+	return new ElasticsearchDocumentIndex(client, Options.Create(options), logger);
+});
 builder.Services.Configure<RabbitMqOptions>(
 	builder.Configuration.GetSection(RabbitMqOptions.SectionName));
 builder.Services.AddSingleton<IConnectionFactory>(serviceProvider =>
@@ -78,6 +106,11 @@ var app = builder.Build();
 app.UseExceptionHandler();
 
 app.Services.ApplyMigrations();
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    await scope.ServiceProvider.GetRequiredService<LegacyDocumentContentMigration>()
+        .RunAsync(app.Lifetime.ApplicationStopping);
+}
 
 app.UseSwagger();
 app.UseSwaggerUI();

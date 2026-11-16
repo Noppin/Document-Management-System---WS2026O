@@ -13,8 +13,28 @@ services:
       timeout: 5s
       retries: 10
 
+  minio:
+    image: pgsty/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: dms
+      MINIO_ROOT_PASSWORD: dmsminio123
+    ports:
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
   rabbitmq:
     image: rabbitmq:4.1-management
+    hostname: rabbitmq
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: dms
       RABBITMQ_DEFAULT_PASS: dms
@@ -26,6 +46,40 @@ services:
       timeout: 5s
       retries: 12
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.3
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:9.5.3
+    volumes:
+      - ./infra/logstash/pipeline:/usr/share/logstash/pipeline:ro
+    ports:
+      - "5044:5044"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.5.3
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
   api:
     build:
       context: .
@@ -35,6 +89,13 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DocumentManagementDb: Host=postgres;Port=5432;Database=document_management;Username=postgres;Password=postgres
       Keycloak__Authority: http://keycloak:8080/realms/dms
+      Minio__Endpoint: minio:9000
+      Minio__AccessKey: dms
+      Minio__SecretKey: dmsminio123
+      Minio__BucketName: documents
+      Minio__UseSsl: "false"
+      Elasticsearch__Endpoint: http://elasticsearch:9200
+      Elasticsearch__IndexName: documents
       RabbitMq__HostName: rabbitmq
       RabbitMq__Port: 5672
       RabbitMq__UserName: dms
@@ -44,7 +105,14 @@ services:
       RabbitMq__RoutingKey: document.uploaded
       RabbitMq__DeadLetterExchangeName: dms.events.dlx
       RabbitMq__DeadLetterQueueName: dms.document.ocr.dead
+      RabbitMq__IndexQueueName: dms.document.index
+      RabbitMq__IndexRoutingKey: document.ocr.completed
+      RabbitMq__IndexDeadLetterQueueName: dms.document.index.dead
     depends_on:
+      minio:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       rabbitmq:
@@ -64,8 +132,46 @@ services:
       RabbitMq__RoutingKey: document.uploaded
       RabbitMq__DeadLetterExchangeName: dms.events.dlx
       RabbitMq__DeadLetterQueueName: dms.document.ocr.dead
+      RabbitMq__IndexQueueName: dms.document.index
+      RabbitMq__IndexRoutingKey: document.ocr.completed
+      RabbitMq__IndexDeadLetterQueueName: dms.document.index.dead
+      Minio__Endpoint: minio:9000
+      Minio__AccessKey: dms
+      Minio__SecretKey: dmsminio123
+      Minio__BucketName: documents
+      Minio__UseSsl: "false"
+      Ocr__Language: eng
+      Ocr__Dpi: 200
     depends_on:
       rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+
+  indexing-worker:
+    build:
+      context: .
+      dockerfile: src/DocumentManagementSystem.IndexingWorker/Dockerfile
+    environment:
+      RabbitMq__HostName: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__UserName: dms
+      RabbitMq__Password: dms
+      RabbitMq__QueueName: dms.document.ocr
+      RabbitMq__ExchangeName: dms.events
+      RabbitMq__RoutingKey: document.uploaded
+      RabbitMq__DeadLetterExchangeName: dms.events.dlx
+      RabbitMq__DeadLetterQueueName: dms.document.ocr.dead
+      RabbitMq__IndexQueueName: dms.document.index
+      RabbitMq__IndexRoutingKey: document.ocr.completed
+      RabbitMq__IndexDeadLetterQueueName: dms.document.index.dead
+      Elasticsearch__Endpoint: http://elasticsearch:9200
+      Elasticsearch__IndexName: documents
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      elasticsearch:
         condition: service_healthy
     restart: unless-stopped
 
@@ -92,4 +198,7 @@ services:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm.json:ro
 
 volumes:
+  rabbitmq-data:
   postgres-data:
+  minio-data:
+  elasticsearch-data:

@@ -7,6 +7,8 @@ COPY src/DocumentManagementSystem.Domain/DocumentManagementSystem.Domain.csproj 
 COPY src/DocumentManagementSystem.Application/DocumentManagementSystem.Application.csproj src/DocumentManagementSystem.Application/
 COPY src/DocumentManagementSystem.Persistence/DocumentManagementSystem.Persistence.csproj src/DocumentManagementSystem.Persistence/
 COPY src/DocumentManagementSystem.Messaging/DocumentManagementSystem.Messaging.csproj src/DocumentManagementSystem.Messaging/
+COPY src/DocumentManagementSystem.Storage/DocumentManagementSystem.Storage.csproj src/DocumentManagementSystem.Storage/
+COPY src/DocumentManagementSystem.Search/DocumentManagementSystem.Search.csproj src/DocumentManagementSystem.Search/
 COPY src/DocumentManagementSystem.Api/DocumentManagementSystem.Api.csproj src/DocumentManagementSystem.Api/
 RUN dotnet restore src/DocumentManagementSystem.Api/DocumentManagementSystem.Api.csproj
 

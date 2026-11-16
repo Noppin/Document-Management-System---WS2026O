@@ -43,19 +43,19 @@ public sealed class DocumentsController(IDocumentService service, ILogger<Docume
     [HttpGet("{id:guid}/content")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult Download(Guid id)
+    public async Task<IActionResult> Download(Guid id, CancellationToken cancellationToken)
     {
-        var document = service.GetDownload(id);
+        var document = await service.GetDownloadAsync(id, cancellationToken);
         return document is null
             ? NotFound()
             : File(document.Content, document.ContentType, document.FileName);
     }
 
     [HttpDelete("{id:guid}")]
-    public IActionResult Delete(Guid id)
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
         logger.LogInformation("Received delete request for document {DocumentId}", id);
 
-        return service.Delete(id) ? NoContent() : NotFound();
+        return await service.DeleteAsync(id, cancellationToken) ? NoContent() : NotFound();
     }
 }

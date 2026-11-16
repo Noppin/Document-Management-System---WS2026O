@@ -13,6 +13,7 @@ public static class DependencyInjection
     {
         services.AddScoped<IDocumentService, DocumentService>();
         services.AddScoped<ICollectionService, CollectionService>();
+        services.AddScoped<IDocumentSearchService, DocumentSearchService>();
         services.AddAutoMapper(configuration => configuration.AddProfile<MappingProfile>());
         services.AddScoped<IValidator<UploadDocumentRequest>, UploadDocumentRequestValidator>();
         services.AddScoped<IValidator<CreateCollectionRequest>, CreateCollectionRequestValidator>();

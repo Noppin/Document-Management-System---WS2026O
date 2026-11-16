@@ -19,7 +19,7 @@ public sealed class DocumentManagementDbContext(DbContextOptions<DocumentManagem
             entity.Property(document => document.FileName).IsRequired().HasMaxLength(255);
             entity.Property(document => document.ContentType).IsRequired().HasMaxLength(100);
             entity.Property(document => document.FileSize).IsRequired();
-            entity.Property(document => document.Content).IsRequired();
+            entity.Property(document => document.Content).IsRequired(false);
             entity.Property(document => document.Title).HasMaxLength(200);
             entity.Property(document => document.Description).HasMaxLength(1000);
             entity.Property(document => document.Status).IsRequired();

@@ -1,3 +1,4 @@
+// Mit AI geschrieben (Testanpassungen).
 using AutoMapper;
 using DocumentManagementSystem.Domain.Entities;
 using DocumentManagementSystem.Persistence.Entities;
@@ -36,7 +37,6 @@ public sealed class PersistenceMappingProfileTests : IDisposable
             FileName = "invoice.pdf",
             ContentType = "application/pdf",
             FileSize = 8,
-            Content = "%PDF-1.4"u8.ToArray(),
             Title = "Invoice",
             Description = "October invoice",
             Status = status,
@@ -53,7 +53,6 @@ public sealed class PersistenceMappingProfileTests : IDisposable
         Assert.Equal(document.FileName, result.FileName);
         Assert.Equal(document.ContentType, result.ContentType);
         Assert.Equal(document.FileSize, result.FileSize);
-        Assert.Equal(document.Content, result.Content);
         Assert.Equal(document.Title, result.Title);
         Assert.Equal(document.Description, result.Description);
         Assert.Equal(document.Status, result.Status);
@@ -89,7 +88,6 @@ public sealed class PersistenceMappingProfileTests : IDisposable
             FileName = "invoice.pdf",
             ContentType = "application/pdf",
             FileSize = 8,
-            Content = "%PDF-1.4"u8.ToArray(),
             Status = 2
         };
         var link = new CollectionDocumentEntity

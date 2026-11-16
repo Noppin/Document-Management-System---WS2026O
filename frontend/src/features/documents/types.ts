@@ -5,3 +5,8 @@ export type DocumentDto = {
   fileSize: number;
   createdAt: string;
 };
+
+export type DocumentSearchResultDto = {
+  id: string;
+  fileName: string;
+};

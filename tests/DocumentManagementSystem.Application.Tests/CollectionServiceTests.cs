@@ -1,3 +1,4 @@
+// Mit AI geschrieben (Testanpassungen).
 using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Application.Services;
 using DocumentManagementSystem.Application.Validation;
@@ -201,7 +202,6 @@ public sealed class CollectionServiceTests
             FileName = fileName,
             ContentType = "application/pdf",
             FileSize = 8,
-            Content = "%PDF-1.4"u8.ToArray()
         };
 
         using var context = _database.CreateContext();

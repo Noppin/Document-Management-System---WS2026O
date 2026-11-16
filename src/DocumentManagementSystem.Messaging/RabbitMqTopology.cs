@@ -20,6 +20,52 @@ public static class RabbitMqTopology
             cancellationToken: cancellationToken);
     }
 
+    public static async Task DeclareIndexingConsumerTopologyAsync(
+        IChannel channel,
+        RabbitMqOptions options,
+        CancellationToken cancellationToken = default)
+    {
+        await DeclareProducerTopologyAsync(channel, options, cancellationToken);
+        await channel.ExchangeDeclareAsync(
+            exchange: options.IndexDeadLetterExchangeName,
+            type: ExchangeType.Fanout,
+            durable: true,
+            autoDelete: false,
+            arguments: null,
+            cancellationToken: cancellationToken);
+
+        await channel.QueueDeclareAsync(
+            queue: options.IndexDeadLetterQueueName,
+            durable: true,
+            exclusive: false,
+            autoDelete: false,
+            arguments: null,
+            cancellationToken: cancellationToken);
+        await channel.QueueBindAsync(
+            queue: options.IndexDeadLetterQueueName,
+            exchange: options.IndexDeadLetterExchangeName,
+            routingKey: string.Empty,
+            arguments: null,
+            cancellationToken: cancellationToken);
+
+        await channel.QueueDeclareAsync(
+            queue: options.IndexQueueName,
+            durable: true,
+            exclusive: false,
+            autoDelete: false,
+            arguments: new Dictionary<string, object?>
+            {
+                [DeadLetterExchangeArgument] = options.IndexDeadLetterExchangeName
+            },
+            cancellationToken: cancellationToken);
+        await channel.QueueBindAsync(
+            queue: options.IndexQueueName,
+            exchange: options.ExchangeName,
+            routingKey: options.IndexRoutingKey,
+            arguments: null,
+            cancellationToken: cancellationToken);
+    }
+
     public static async Task DeclareConsumerTopologyAsync(
         IChannel channel,
         RabbitMqOptions options,

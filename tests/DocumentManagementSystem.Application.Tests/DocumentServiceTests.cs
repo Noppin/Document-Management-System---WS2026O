@@ -1,3 +1,4 @@
+// Mit AI geschrieben (Testergänzungen und -anpassungen).
 using DocumentManagementSystem.Application.Dtos;
 using DocumentManagementSystem.Application.Services;
 using DocumentManagementSystem.Application.Validation;
@@ -8,6 +9,8 @@ using DocumentManagementSystem.TestHelpers;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
+using DocumentManagementSystem.Storage;
+using DocumentManagementSystem.Search;
 
 namespace DocumentManagementSystem.Application.Tests;
 
@@ -29,8 +32,21 @@ public sealed class DocumentServiceTests
 
         using var context = _database.CreateContext();
         Assert.Single(new DocumentRepository(context, TestMapper.Create()).GetAll());
+        Assert.Null(context.Documents.Single().Content);
     }
 
+
+    [Fact]
+    public async Task UploadAsync_ValidPdf_StoresOriginalPdfInMinioAbstraction()
+    {
+        var storage = new InMemoryDocumentStorage();
+        var service = CreateService(storage: storage);
+
+        var response = await service.UploadAsync(CreateUploadRequest("invoice.pdf"));
+
+        Assert.True(storage.Documents.TryGetValue(response.Id, out var stored));
+        Assert.Equal("%PDF-1.4"u8.ToArray(), stored);
+    }
 
     [Fact]
     public async Task UploadAsync_ValidPdf_PublishesOcrQueueMessage()
@@ -67,6 +83,50 @@ public sealed class DocumentServiceTests
 
         using var context = _database.CreateContext();
         Assert.Empty(new DocumentRepository(context, TestMapper.Create()).GetAll());
+    }
+
+    [Fact]
+    public async Task UploadAsync_QueuePublishFails_RemovesMinioObject()
+    {
+        var storage = new InMemoryDocumentStorage();
+        var service = CreateService(new ThrowingDocumentQueuePublisher(), storage);
+
+        await Assert.ThrowsAsync<DocumentQueueException>(
+            () => service.UploadAsync(CreateUploadRequest("invoice.pdf")));
+
+        Assert.Empty(storage.Documents);
+    }
+
+    [Fact]
+    public async Task UploadAsync_StorageFails_DoesNotPersistOrPublish()
+    {
+        var queue = new RecordingDocumentQueuePublisher();
+        var storage = new InMemoryDocumentStorage { FailStore = true };
+        await Assert.ThrowsAsync<DocumentStorageException>(() =>
+            CreateService(queue, storage).UploadAsync(CreateUploadRequest("a.pdf")));
+        Assert.Empty(queue.Messages);
+        using var context = _database.CreateContext();
+        Assert.Empty(context.Documents);
+    }
+
+    [Fact]
+    public async Task UploadAsync_RollbackStorageFails_PreservesOriginalFailureAndRemovesMetadata()
+    {
+        var storage = new InMemoryDocumentStorage { FailDelete = true };
+        await Assert.ThrowsAsync<DocumentQueueException>(() =>
+            CreateService(new ThrowingDocumentQueuePublisher(), storage).UploadAsync(CreateUploadRequest("a.pdf")));
+        using var context = _database.CreateContext();
+        Assert.Empty(context.Documents);
+        // Failed cleanup is logged, not falsely reported as a successful rollback.
+        Assert.Single(storage.Documents);
+    }
+
+    [Fact]
+    public async Task Download_StorageFails_PropagatesStorageException()
+    {
+        var id = SeedDocument("a.pdf");
+        await Assert.ThrowsAsync<DocumentStorageException>(() =>
+            CreateService(storage: new InMemoryDocumentStorage { FailRead = true }).GetDownloadAsync(id));
     }
 
     [Fact]
@@ -143,27 +203,51 @@ public sealed class DocumentServiceTests
     }
 
     [Fact]
-    public void Delete_ExistingDocument_ReturnsTrue()
+    public async Task Delete_ExistingDocument_ReturnsTrue()
     {
         var id = SeedDocument("invoice.pdf");
 
-        Assert.True(CreateService().Delete(id));
+        var storage = new InMemoryDocumentStorage();
+        storage.Documents[id] = "%PDF-1.4"u8.ToArray();
+        Assert.True(await CreateService(storage: storage).DeleteAsync(id));
         Assert.Null(CreateService().Get(id));
     }
 
     [Fact]
-    public void Delete_UnknownDocument_ReturnsFalse()
+    public async Task Delete_ExistingDocument_RemovesItFromSearchIndex()
     {
-        Assert.False(CreateService().Delete(Guid.NewGuid()));
+        var id = SeedDocument("a.pdf");
+        var searchIndex = new RecordingSearchIndex();
+
+        Assert.True(await CreateService(searchIndex: searchIndex).DeleteAsync(id));
+
+        Assert.Equal([id], searchIndex.DeletedIds);
     }
 
     [Fact]
-    public void GetDownload_ExistingDocument_ReturnsStoredContent()
+    public async Task Delete_SearchIndexUnavailable_StillDeletesDocument()
     {
-        var service = CreateService();
-        var id = SeedDocument("invoice.pdf");
+        var id = SeedDocument("a.pdf");
 
-        var download = service.GetDownload(id);
+        Assert.True(await CreateService(searchIndex: new RecordingSearchIndex(failOnDelete: true)).DeleteAsync(id));
+        Assert.Null(CreateService().Get(id));
+    }
+
+    [Fact]
+    public async Task Delete_UnknownDocument_ReturnsFalse()
+    {
+        Assert.False(await CreateService().DeleteAsync(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public async Task GetDownload_ExistingDocument_ReturnsStoredContent()
+    {
+        var storage = new InMemoryDocumentStorage();
+        var id = SeedDocument("invoice.pdf");
+        storage.Documents[id] = "%PDF-1.4"u8.ToArray();
+        var service = CreateService(storage: storage);
+
+        var download = await service.GetDownloadAsync(id);
 
         Assert.NotNull(download);
         Assert.Equal("application/pdf", download!.ContentType);
@@ -172,16 +256,21 @@ public sealed class DocumentServiceTests
     }
 
     [Fact]
-    public void GetDownload_UnknownDocument_ReturnsNull()
+    public async Task GetDownload_UnknownDocument_ReturnsNull()
     {
         var service = CreateService();
 
-        Assert.Null(service.GetDownload(Guid.NewGuid()));
+        Assert.Null(await service.GetDownloadAsync(Guid.NewGuid()));
     }
 
-    private DocumentService CreateService(IDocumentQueuePublisher? queuePublisher = null) =>
+    private DocumentService CreateService(
+        IDocumentQueuePublisher? queuePublisher = null,
+        IDocumentStorage? storage = null,
+        IDocumentSearchIndex? searchIndex = null) =>
         new(new DocumentRepository(_database.CreateContext(), TestMapper.Create()), TestMapper.Create(),
             new UploadDocumentRequestValidator(), queuePublisher ?? new RecordingDocumentQueuePublisher(),
+            storage ?? new InMemoryDocumentStorage(),
+            searchIndex ?? new RecordingSearchIndex(),
             NullLogger<DocumentService>.Instance);
 
     private Guid SeedDocument(string fileName, DateTimeOffset? createdAt = null)
@@ -191,7 +280,6 @@ public sealed class DocumentServiceTests
             FileName = fileName,
             ContentType = "application/pdf",
             FileSize = 8,
-            Content = "%PDF-1.4"u8.ToArray(),
             CreatedAt = createdAt ?? DateTimeOffset.UtcNow
         };
 
@@ -214,6 +302,62 @@ public sealed class DocumentServiceTests
                 ContentType = contentType
             }
         };
+    }
+
+    private sealed class InMemoryDocumentStorage : IDocumentStorage
+    {
+        public Dictionary<Guid, byte[]> Documents { get; } = [];
+        public bool FailStore { get; init; }
+        public bool FailRead { get; init; }
+        public bool FailDelete { get; init; }
+
+        public async Task StoreAsync(
+            Guid documentId,
+            Stream content,
+            long contentLength,
+            string contentType,
+            CancellationToken cancellationToken = default)
+        {
+            if (FailStore) throw new DocumentStorageException("Storage unavailable", new IOException());
+            using var buffer = new MemoryStream();
+            await content.CopyToAsync(buffer, cancellationToken);
+            Documents[documentId] = buffer.ToArray();
+        }
+
+        public Task<byte[]> GetAsync(Guid documentId, CancellationToken cancellationToken = default) =>
+            FailRead ? Task.FromException<byte[]>(new DocumentStorageException("Read failed", new IOException()))
+                : Task.FromResult(Documents[documentId]);
+
+        public Task DeleteAsync(Guid documentId, CancellationToken cancellationToken = default)
+        {
+            if (FailDelete) throw new DocumentStorageException("Cleanup failed", new IOException());
+            Documents.Remove(documentId);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingSearchIndex(bool failOnDelete = false) : IDocumentSearchIndex
+    {
+        public List<Guid> DeletedIds { get; } = [];
+
+        public Task IndexAsync(SearchDocument document, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task DeleteAsync(Guid documentId, CancellationToken cancellationToken = default)
+        {
+            if (failOnDelete)
+            {
+                throw new SearchIndexException("Elasticsearch is unavailable.");
+            }
+
+            DeletedIds.Add(documentId);
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<SearchDocument>> SearchAsync(
+            string query,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<SearchDocument>>([]);
     }
 
     private sealed class RecordingDocumentQueuePublisher : IDocumentQueuePublisher

@@ -5,6 +5,8 @@ using DocumentManagementSystem.Messaging;
 using DocumentManagementSystem.Domain.Repositories;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
+using DocumentManagementSystem.Storage;
+using DocumentManagementSystem.Search;
 
 namespace DocumentManagementSystem.Application.Services;
 
@@ -13,6 +15,8 @@ public sealed class DocumentService(
     IMapper mapper,
     IValidator<UploadDocumentRequest> validator,
     IDocumentQueuePublisher queuePublisher,
+    IDocumentStorage storage,
+    IDocumentSearchIndex searchIndex,
     ILogger<DocumentService> logger) : IDocumentService
 {
     public async Task<DocumentResponse> UploadAsync(
@@ -30,20 +34,27 @@ public sealed class DocumentService(
             FileName = Path.GetFileName(request.File.FileName),
             ContentType = request.File.ContentType,
             FileSize = request.File.Length,
-            Content = content,
             Status = DocumentStatus.Queued
         };
 
-        documents.Add(document);
-
-        logger.LogInformation(
-            "Persisted uploaded document {DocumentId} ({FileName}, {FileSize} bytes) for OCR processing",
+        await using var storageStream = new MemoryStream(content, writable: false);
+        await storage.StoreAsync(
             document.Id,
-            document.FileName,
-            document.FileSize);
+            storageStream,
+            document.FileSize,
+            document.ContentType,
+            cancellationToken);
 
         try
         {
+            documents.Add(document);
+
+            logger.LogInformation(
+                "Persisted uploaded document {DocumentId} ({FileName}, {FileSize} bytes) and stored its PDF in MinIO",
+                document.Id,
+                document.FileName,
+                document.FileSize);
+
             await queuePublisher.PublishAsync(
                 new DocumentUploadedMessage(
                     MessageId: Guid.NewGuid(),
@@ -54,12 +65,34 @@ public sealed class DocumentService(
                     UploadedAt: document.CreatedAt),
                 cancellationToken);
         }
-        catch (DocumentQueueException)
+        catch
         {
-            documents.Delete(document.Id);
+            // Cleanup must still run when the original request has been cancelled. Keep the
+            // original failure, even if one cleanup step fails, and attempt both resources.
+            try
+            {
+                documents.Delete(document.Id);
+            }
+            catch (Exception cleanupException)
+            {
+                logger.LogError(cleanupException, "Failed to remove metadata for document {DocumentId} during rollback", document.Id);
+            }
+
+            try
+            {
+                using var cleanupTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                await storage.DeleteAsync(document.Id, cleanupTimeout.Token);
+            }
+            catch (Exception cleanupException)
+            {
+                logger.LogError(
+                    cleanupException,
+                    "Failed to remove MinIO object for document {DocumentId} during upload rollback",
+                    document.Id);
+            }
 
             logger.LogWarning(
-                "Removed document {DocumentId} because the OCR queue publish failed",
+                "Attempted rollback for document {DocumentId} after the upload pipeline failed; check cleanup errors",
                 document.Id);
 
             throw;
@@ -77,13 +110,46 @@ public sealed class DocumentService(
         return document is null ? null : mapper.Map<DocumentResponse>(document);
     }
 
-    public DocumentDownloadResponse? GetDownload(Guid id)
+    public async Task<DocumentDownloadResponse?> GetDownloadAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
     {
         var document = documents.GetById(id);
-        return document is null
-            ? null
-            : mapper.Map<DocumentDownloadResponse>(document);
+        if (document is null)
+        {
+            return null;
+        }
+
+        var content = await storage.GetAsync(id, cancellationToken);
+        return new DocumentDownloadResponse(content, document.ContentType, document.FileName);
     }
 
-    public bool Delete(Guid id) => documents.Delete(id);
+    public async Task<bool> DeleteAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var document = documents.GetById(id);
+        if (document is null)
+        {
+            return false;
+        }
+
+        await storage.DeleteAsync(id, cancellationToken);
+        var deleted = documents.Delete(id);
+
+        try
+        {
+            await searchIndex.DeleteAsync(id, cancellationToken);
+        }
+        catch (SearchIndexException exception)
+        {
+            // The document itself is gone; a stale search entry must not fail the delete.
+            logger.LogWarning(
+                exception,
+                "Could not remove document {DocumentId} from the search index",
+                id);
+        }
+
+        return deleted;
+    }
 }

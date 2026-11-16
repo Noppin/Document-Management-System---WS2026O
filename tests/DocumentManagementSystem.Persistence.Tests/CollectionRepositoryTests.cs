@@ -1,3 +1,4 @@
+// Mit AI geschrieben (Testanpassungen).
 using DocumentManagementSystem.Domain.Entities;
 using DocumentManagementSystem.TestHelpers;
 
@@ -145,7 +146,6 @@ public sealed class CollectionRepositoryTests
             FileName = "sample.pdf",
             ContentType = "application/pdf",
             FileSize = 12,
-            Content = "%PDF-1.4"u8.ToArray()
         };
 
         using var context = _database.CreateContext();

@@ -1,5 +1,5 @@
-import { apiRequest } from '../../api/http';
-import type { DocumentDto } from './types';
+import { apiBlobRequest, apiRequest } from '../../api/http';
+import type { DocumentDto, DocumentSearchResultDto } from './types';
 
 export function getDocuments() {
   return apiRequest<DocumentDto[]>('/documents');
@@ -24,13 +24,7 @@ export function documentContentUrl(id: string) {
 }
 
 export async function downloadDocument(id: string, fileName: string): Promise<void> {
-  const response = await fetch(`/api/documents/${id}/content`);
-
-  if (!response.ok) {
-    throw new Error('Failed to download document.');
-  }
-
-  const blob = await response.blob();
+  const blob = await apiBlobRequest(`/documents/${id}/content`);
   const url = window.URL.createObjectURL(blob);
 
   const link = document.createElement('a');
@@ -43,4 +37,10 @@ export async function downloadDocument(id: string, fileName: string): Promise<vo
 
   link.remove();
   window.URL.revokeObjectURL(url);
+}
+
+export function searchDocuments(query: string) {
+  return apiRequest<DocumentSearchResultDto[]>(
+    `/search?query=${encodeURIComponent(query)}`
+  );
 }

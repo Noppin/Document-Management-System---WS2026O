@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
+  Alert,
   Button,
   Card,
   CardContent,
@@ -31,6 +32,7 @@ export function DocumentDetailPage() {
   const document = useDocument(id);
   const remove = useDeleteDocument();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [downloadError, setDownloadError] = useState<string>();
 
   if (document.isLoading) return <LoadingState label="Loading document…" />;
   if (document.isError) {
@@ -42,6 +44,14 @@ export function DocumentDetailPage() {
   if (!document.data) return <ErrorState message="Document not found." />;
 
   const item = document.data;
+  const downloadCurrent = async () => {
+    setDownloadError(undefined);
+    try {
+      await downloadDocument(item.id, item.fileName);
+    } catch (error) {
+      setDownloadError(error instanceof Error ? error.message : 'Failed to download document.');
+    }
+  };
   const deleteCurrent = async () => {
     await remove.mutateAsync(item.id);
     navigate('/');
@@ -71,7 +81,7 @@ export function DocumentDetailPage() {
           <Button
             variant='contained'
             startIcon={<DownloadRoundedIcon />}
-            onClick={() => downloadDocument(item.id, item.fileName)}
+            onClick={() => void downloadCurrent()}
           >
             Download
           </Button>
@@ -85,6 +95,12 @@ export function DocumentDetailPage() {
           </Button>
         </Stack>
       </Stack>
+
+      {downloadError && (
+        <Alert severity='error' onClose={() => setDownloadError(undefined)}>
+          {downloadError}
+        </Alert>
+      )}
 
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, lg: 8 }}>
