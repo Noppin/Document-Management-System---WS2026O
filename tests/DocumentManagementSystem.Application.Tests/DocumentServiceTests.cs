@@ -9,6 +9,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using DocumentManagementSystem.Storage;
+using DocumentManagementSystem.Search;
 
 namespace DocumentManagementSystem.Application.Tests;
 
@@ -179,6 +180,26 @@ public sealed class DocumentServiceTests
     }
 
     [Fact]
+    public async Task Delete_ExistingDocument_RemovesItFromSearchIndex()
+    {
+        var id = SeedDocument("a.pdf");
+        var searchIndex = new RecordingSearchIndex();
+
+        Assert.True(await CreateService(searchIndex: searchIndex).DeleteAsync(id));
+
+        Assert.Equal([id], searchIndex.DeletedIds);
+    }
+
+    [Fact]
+    public async Task Delete_SearchIndexUnavailable_StillDeletesDocument()
+    {
+        var id = SeedDocument("a.pdf");
+
+        Assert.True(await CreateService(searchIndex: new RecordingSearchIndex(failOnDelete: true)).DeleteAsync(id));
+        Assert.Null(CreateService().Get(id));
+    }
+
+    [Fact]
     public async Task Delete_UnknownDocument_ReturnsFalse()
     {
         Assert.False(await CreateService().DeleteAsync(Guid.NewGuid()));
@@ -210,10 +231,12 @@ public sealed class DocumentServiceTests
 
     private DocumentService CreateService(
         IDocumentQueuePublisher? queuePublisher = null,
-        IDocumentStorage? storage = null) =>
+        IDocumentStorage? storage = null,
+        IDocumentSearchIndex? searchIndex = null) =>
         new(new DocumentRepository(_database.CreateContext(), TestMapper.Create()), TestMapper.Create(),
             new UploadDocumentRequestValidator(), queuePublisher ?? new RecordingDocumentQueuePublisher(),
             storage ?? new InMemoryDocumentStorage(),
+            searchIndex ?? new RecordingSearchIndex(),
             NullLogger<DocumentService>.Instance);
 
     private Guid SeedDocument(string fileName, DateTimeOffset? createdAt = null)
@@ -272,6 +295,30 @@ public sealed class DocumentServiceTests
             Documents.Remove(documentId);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class RecordingSearchIndex(bool failOnDelete = false) : IDocumentSearchIndex
+    {
+        public List<Guid> DeletedIds { get; } = [];
+
+        public Task IndexAsync(SearchDocument document, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task DeleteAsync(Guid documentId, CancellationToken cancellationToken = default)
+        {
+            if (failOnDelete)
+            {
+                throw new SearchIndexException("Elasticsearch is unavailable.");
+            }
+
+            DeletedIds.Add(documentId);
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<SearchDocument>> SearchAsync(
+            string query,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<SearchDocument>>([]);
     }
 
     private sealed class RecordingDocumentQueuePublisher : IDocumentQueuePublisher

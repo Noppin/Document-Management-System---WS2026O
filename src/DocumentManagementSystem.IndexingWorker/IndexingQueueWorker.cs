@@ -2,12 +2,14 @@ using DocumentManagementSystem.Messaging;
 using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using DocumentManagementSystem.Search;
 
 namespace DocumentManagementSystem.IndexingWorker;
 
 public sealed class IndexingQueueWorker(
     IOptions<RabbitMqOptions> options,
     OcrCompletedMessageProcessor processor,
+    IDocumentSearchIndex searchIndex,
     ILogger<IndexingQueueWorker> logger,
     IConnectionFactory? connectionFactory = null) : BackgroundService
 {
@@ -60,7 +62,14 @@ public sealed class IndexingQueueWorker(
         {
             try
             {
-                processor.Process(eventArgs.Body);
+                var message = processor.Process(eventArgs.Body);
+                await searchIndex.IndexAsync(
+                    new SearchDocument(
+                        message.DocumentId,
+                        message.FileName,
+                        message.Text,
+                        DateTimeOffset.UtcNow),
+                    stoppingToken);
                 await channel.BasicAckAsync(eventArgs.DeliveryTag, false, stoppingToken);
             }
             catch (OcrCompletedMessageProcessingException exception)

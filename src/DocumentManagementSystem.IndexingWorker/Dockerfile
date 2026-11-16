@@ -3,6 +3,7 @@ WORKDIR /src
 
 COPY Directory.Build.props ./
 COPY src/DocumentManagementSystem.Messaging/DocumentManagementSystem.Messaging.csproj src/DocumentManagementSystem.Messaging/
+COPY src/DocumentManagementSystem.Search/DocumentManagementSystem.Search.csproj src/DocumentManagementSystem.Search/
 COPY src/DocumentManagementSystem.IndexingWorker/DocumentManagementSystem.IndexingWorker.csproj src/DocumentManagementSystem.IndexingWorker/
 RUN dotnet restore src/DocumentManagementSystem.IndexingWorker/DocumentManagementSystem.IndexingWorker.csproj
 
